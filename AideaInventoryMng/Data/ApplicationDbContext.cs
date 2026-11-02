@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Security.Cryptography.X509Certificates;
+using AideaInventoryMng.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace AideaInventoryMng.Data
 {
@@ -6,9 +8,10 @@ namespace AideaInventoryMng.Data
     {
         public ApplicationDbContext(
             DbContextOptions<ApplicationDbContext> options ) 
-            : base(options)
-        {
+            : base(options){}
 
-        }
+        //Productsテーブル
+        public DbSet<Product> Products { get; set; }
+
     }
 }
