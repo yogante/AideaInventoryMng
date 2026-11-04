@@ -10,7 +10,7 @@ namespace AideaInventoryMng
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // Add services to the container. Controller登録
             builder.Services.AddControllers();
 
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -21,10 +21,13 @@ namespace AideaInventoryMng
             builder.Services.AddSwaggerGen();
 
             //PostgreSQL接続設定
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(
+            var connectionString =
                 builder.Configuration.GetConnectionString("DefaultConnection")
-                ));
+                ?? throw new InvalidOperationException(
+                    "DefaultConnectionが設定されていません。");
+
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseNpgsql(connectionString));
 
             var app = builder.Build();
 
