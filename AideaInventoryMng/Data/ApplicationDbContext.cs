@@ -12,5 +12,7 @@ namespace AideaInventoryMng.Data
         //Productsテーブル
         public DbSet<Product> Products { get; set; }
 
+        //Warehouseテーブル
+        public DbSet<Warehouse> Warehouses { get; set; }
     }
 }
