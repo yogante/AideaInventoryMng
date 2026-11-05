@@ -123,3 +123,13 @@ ProductsControllerの作成
 
 Product Entityの作成
 
+
+11/5(木)
+Product のDTO作成完了
+
+Warehouse のEntity、DTO、Controllerの作成
+
+設計書の7.2・7.3修正完了
+
+在庫数量を stocks テーブルで管理する方針を確認
+
