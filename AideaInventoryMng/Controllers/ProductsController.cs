@@ -23,11 +23,11 @@ namespace AideaInventoryMng.Controllers
             var products = await _context.Products.Select(
                 p => new ProductResponse
                 {
-                    Id = p.Id,
+                    //Id = p.Id,
                     Name = p.Name,
                     Description = p.Description,
                     Price = p.Price,
-                    StockQty = p.StockQty,
+                    //StockQty = p.StockQty,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 }
@@ -46,7 +46,7 @@ namespace AideaInventoryMng.Controllers
                 Name = request.Name,
                 Description = request.Description,
                 Price = request.Price,
-                StockQty = request.StockQty,
+                //StockQty = request.StockQty,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
             };
@@ -60,11 +60,11 @@ namespace AideaInventoryMng.Controllers
             // EntityからResponse DTOに変換
             var response = new ProductResponse
             {
-                Id = product.Id,
+                //Id = product.Id,
                 Name = product.Name,
                 Description = product.Description,
                 Price = product.Price,
-                StockQty = product.StockQty,
+                //StockQty = product.StockQty,
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };
@@ -86,11 +86,11 @@ namespace AideaInventoryMng.Controllers
                 .Where(p => p.Id == id)
                 .Select(p => new ProductResponse
                 {
-                    Id = p.Id,
+                    //Id = p.Id,
                     Name = p.Name,
                     Description = p.Description,
                     Price = p.Price,
-                    StockQty = p.StockQty,
+                    //StockQty = p.StockQty,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 }
@@ -125,7 +125,7 @@ namespace AideaInventoryMng.Controllers
             existingProduct.Name = request.Name;
             existingProduct.Description = request.Description;
             existingProduct.Price = request.Price;
-            existingProduct.StockQty = request.StockQty;
+            //existingProduct.StockQty = request.StockQty;
 
             //更新日時を設定
             existingProduct.UpdatedAt = DateTime.UtcNow;

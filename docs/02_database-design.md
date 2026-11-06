@@ -517,7 +517,7 @@ ER図はA5:SQL Mk-2で作成し、以下のファイルとして管理する。
 
 | 3 | location\_code | ロケーションコード | varchar(30) | NOT NULL | UK | - | 倉庫内の識別コード |
 
-| 4 | name | ロケーション名 | varchar(100) | NOT NULL | - | - | 保管場所名称 |
+| 4 | location_name | ロケーション名 | varchar(100) | NOT NULL | - | - | 保管場所名称 |
 
 | 5 | created\_at | 作成日時 | timestamptz | NOT NULL | - | CURRENT\_TIMESTAMP | 作成日時 |
 
