@@ -25,7 +25,7 @@ namespace AideaInventoryMng.Controllers
             var warehouses = await _context.Warehouses
                  .Select(w => new WarehouseResponse
                   {
-                      Id = w.Id,
+                      //Id = w.Id,
                       Name = w.Name,
                       Code = w.Code,
                       Address = w.Address,
@@ -46,7 +46,7 @@ namespace AideaInventoryMng.Controllers
                 .Where(w => w.Id == id)
                 .Select(w => new WarehouseResponse 
                 {
-                    Id = w.Id,
+                    //Id = w.Id,
                     Name = w.Name,
                     Code = w.Code,
                     Address = w.Address,

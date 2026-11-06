@@ -133,3 +133,9 @@ Warehouse のEntity、DTO、Controllerの作成
 
 在庫数量を stocks テーブルで管理する方針を確認
 
+
+11/6(金)
+
+データベース設計に基づき、Entity Framework Core（EF Core）の初期マイグレーションを再作成し、PostgreSQLへの適用を完了
+
+これにより、在庫管理システムの基盤となる7テーブルをデータベース上に構築できた。
