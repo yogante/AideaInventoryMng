@@ -4,7 +4,7 @@ namespace AideaInventoryMng.Models
 {
     public class Warehouse
     {
-        public long Id { get; set; }
+        public int Id { get; set; }
 
         //倉庫名
         [Required]

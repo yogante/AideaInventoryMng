@@ -5,7 +5,7 @@ namespace AideaInventoryMng.Models
 {
     public class Product
     {
-        public long Id {  get; set; }
+        public int Id {  get; set; }
 
         [Required]
         [MaxLength(50)]
@@ -25,6 +25,8 @@ namespace AideaInventoryMng.Models
         [Range(typeof(decimal),"0", "99999999.99")]
         public decimal Price { get; set; }
 
+
+        public int StockQty { get; set; }
         [Required]
         [MaxLength(20)]
         public string Unit { get; set; } = string.Empty;
