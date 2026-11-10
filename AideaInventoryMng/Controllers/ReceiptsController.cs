@@ -205,7 +205,65 @@ namespace AideaInventoryMng.Controllers
             };
 
             // ⑭ HTTP 201 Createdを返す
-            return StatusCode(StatusCodes.Status201Created, response);
+            return CreatedAtAction(
+                nameof(GetReceipt),
+                new { id = movement.Id },
+                response
+                );
+                
         }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult> GetReceipt(int id)
+        {
+            // ① 入庫履歴を取得
+            var movement = await _context.StockMovements
+                .Include(m => m.Product)
+                .Include(m => m.Location)
+                .ThenInclude(l => l.Warehouse)
+                .FirstOrDefaultAsync(m =>
+                    m.Id == id &&
+                    m.MovementType == "RECEIPT"
+                    );
+
+            // ② 入庫履歴が存在しない場合
+            if (movement == null)
+            {
+                return NotFound(new
+                {
+                    code = "NOT_FOUND",
+                    message = "指定された入庫履歴が存在しません。"
+                });
+            }
+
+            // ③ レスポンスを作成
+            var response = new ReceiptDetailResponse
+            {
+                MovementId = movement.Id,
+
+                ProductId = movement.ProductId,
+                ProductCode = movement.Product.ProductCode,
+                ProductName = movement.Product.Name,
+
+                WarehouseId = movement.Location.WarehouseId,
+                WarehouseCode = movement.Location.Warehouse.Code,
+                WarehouseName = movement.Location.Warehouse.Name,
+
+                LocationId = movement.LocationId,
+                LocationCode = movement.Location.LocationCode,
+                LocationName = movement.Location.LocationName,
+
+                Quantity = movement.QuantityChange,
+                OccurredAt = movement.OccurredAt,
+                Remarks = movement.Remarks,
+                CreatedAt = movement.CreatedAt
+
+            };
+
+            // ④ HTTP 200 OK
+            return Ok(response);
+
+        }
+
     }
 }
