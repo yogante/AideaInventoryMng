@@ -1,4 +1,4 @@
-﻿namespace AideaInventoryMng.DTO.Receipts
+﻿namespace AideaInventoryMng.DTO.Stocks
 {
     public class StockResponse
     {

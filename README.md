@@ -141,8 +141,20 @@ Warehouse のEntity、DTO、Controllerの作成
 これにより、在庫管理システムの基盤となる7テーブルをデータベース上に構築できた。
 
 11/9（月）
-ReceiptsController のPost作成
+
+入庫のためのReceiptsController のPost作成
 
 上記のPostに関係するDTOを３つ作成
 
 上記の内容をSwaggerにて確認テスト実行
+
+
+11/10(火)
+
+出庫のためのIssuesController のPost作成
+
+上記のPostに関係するDTOを３つ作成
+
+上記の内容をSwaggerにて確認テスト実行
+
+

@@ -1,4 +1,6 @@
-﻿namespace AideaInventoryMng.DTO.Receipts
+﻿using AideaInventoryMng.DTO.Stocks;
+
+namespace AideaInventoryMng.DTO.Receipts
 {
     public class ReceiptResponse
     {        

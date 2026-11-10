@@ -1,9 +1,9 @@
 ﻿using AideaInventoryMng.Models;
 using AideaInventoryMng.Data;
 using AideaInventoryMng.DTO.Receipts;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using AideaInventoryMng.DTO.Stocks;
 
 namespace AideaInventoryMng.Controllers
 {
