@@ -23,9 +23,12 @@ namespace AideaInventoryMng.Data.Configurations
                 table.HasCheckConstraint(
                     "ck_stocktake_lines_difference_quantity",
                     """
-                    difference_quantity IS NULL
-                    OR (
+                    (
+                    actual_quantity IS NULL
+                    AND difference_quantity IS NULL
+                    ) OR (
                         actual_quantity IS NOT NULL
+                        AND difference_quantity IS NOT NULL
                         AND difference_quantity = actual_quantity - book_quantity
                     )
                     """);

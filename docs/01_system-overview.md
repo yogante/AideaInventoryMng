@@ -190,15 +190,16 @@ AideaInventoryMng(リポジトリのルート)
 ├── AideaInventoryMng        (アプリ本体)
 ├── README.md
 └── docs
-    ├── 01\_system-overview.md        システム概要・構成設計書(本書)
-    ├── 02\_database-design.md        データベース設計書
-    ├── 03\_api-design.md             API設計書
-    ├── 04\_docker-setup.md           Docker環境構築手順書
-    ├── 05\_aws-setup.md              AWS環境構築手順書
-    ├── 06\_test-spec-and-result.md   テスト仕様書・結果
-    ├── 07\_verification-report.md    動作検証報告書
-    ├── 08\_issues-and-solutions.md   問題点・解決方法の一覧
-    └── 09\_final-report.md           最終学習報告書
+    ├── 01_system-overview.md        システム概要・構成設計書(本書)
+    ├── 02_database-design.md        データベース設計書
+    ├── 03_api-design.md             API設計書
+    ├── 04_processing-design.md      処理設計書
+    ├── 05_docker-setup.md           Docker環境構築手順書
+    ├── 06_aws-setup.md              AWS環境構築手順書
+    ├── 07_test-spec-and-result.md   テスト仕様書・結果
+    ├── 08_verification-report.md    動作検証報告書
+    ├── 09_issues-and-solutions.md   問題点・解決方法の一覧
+    └── 10_final-report.md           最終学習報告書
 ```
 
 \---

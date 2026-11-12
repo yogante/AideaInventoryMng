@@ -436,7 +436,7 @@ namespace AideaInventoryMng.Migrations
 
                             t.HasCheckConstraint("ck_stocktake_lines_book_quantity", "book_quantity >= 0");
 
-                            t.HasCheckConstraint("ck_stocktake_lines_difference_quantity", "difference_quantity IS NULL\r\nOR (\r\n    actual_quantity IS NOT NULL\r\n    AND difference_quantity = actual_quantity - book_quantity\r\n)");
+                            t.HasCheckConstraint("ck_stocktake_lines_difference_quantity", "(\r\nactual_quantity IS NULL\r\nAND difference_quantity IS NULL\r\n) OR (\r\n    actual_quantity IS NOT NULL\r\n    AND difference_quantity IS NOT NULL\r\n    AND difference_quantity = actual_quantity - book_quantity\r\n)");
                         });
                 });
 
