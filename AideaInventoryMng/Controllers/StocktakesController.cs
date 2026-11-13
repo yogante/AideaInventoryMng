@@ -82,6 +82,7 @@ namespace AideaInventoryMng.Controllers
         public async Task<ActionResult<StocktakeResponse>> StartStocktake(long id)
         {
             var stocktake = await _context.Stocktakes
+                // .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == id);
 
             if (stocktake == null)
@@ -195,6 +196,53 @@ namespace AideaInventoryMng.Controllers
                 StocktakeDate = stocktake.StocktakeDate,
                 Status = stocktake.Status,
                 CreatedAt = stocktake.CreatedAt
+            };
+
+            return Ok(response);
+        }
+
+        [HttpGet("{id:long}")]
+        public async Task<ActionResult<StocktakeDetailResponse>> GetStocktake(long id)
+        {
+            // ① 棚卸ヘッダーを取得
+            var stocktake = await _context.Stocktakes
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            // ② 存在確認
+            if (stocktake == null)
+            {
+                return NotFound(new
+                {
+                    code = "NOT_FOUND",
+                    message = "棚卸データが存在しません。"
+
+                });
+            }
+
+            // ③ 棚卸明細を取得
+            var lines = await _context.StocktakeLines
+                .Where(l => l.StocktakeId == id)
+                .Select(l => new StocktakeLineResponse
+                {
+                    Id = l.Id,
+                    ProductId = l.ProductId,
+                    ProductCode = l.Product.ProductCode,
+                    ProductName = l.Product.Name,
+                    LocationId = l.LocationId,
+                    LocationCode = l.Location.LocationCode,
+                    BookQuantity = l.BookQuantity,
+                    ActualQuantity = l.ActualQuantity,
+                    DifferenceQuantity = l.DifferenceQuantity
+                }).ToListAsync();
+
+            // ④ レスポンスを作成
+            var response = new StocktakeDetailResponse
+            {
+                Id = stocktake.Id,
+                WarehouseId = stocktake.WarehouseId,
+                StocktakeDate = stocktake.StocktakeDate,
+                Status = stocktake.Status,
+                Lines = lines,
             };
 
             return Ok(response);

@@ -4,7 +4,7 @@
     {
         public long Id { get; set; }
 
-        // 倉庫ID
+        // 棚卸ID
         public long StocktakeId { get; set; }
 
         //stocktake との関連

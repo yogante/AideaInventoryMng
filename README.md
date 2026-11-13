@@ -153,4 +153,15 @@ Warehouse のEntity、DTO、Controllerの作成
 Postgresの排他制御について
 https://zenn.dev/tazzae999jp/articles/c48597a1b4348a
 
+「人間が操作する時間」は楽観ロック、「DB更新の瞬間」だけ悲観ロック
+https://qiita.com/NagaokaKenichi/items/73040df85b7bd4e9ecfc
+
+在庫の棚卸のためのStocktakesController のPost作成
+Postgresでの楽観ロック・悲観ロック・排他制御を確認
+
+上記のPostに関係するDTOを2つ作成
+
+上記の内容をSwaggerにて確認テスト実行
+
+
 
