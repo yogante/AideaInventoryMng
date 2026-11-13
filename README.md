@@ -158,10 +158,13 @@ https://qiita.com/NagaokaKenichi/items/73040df85b7bd4e9ecfc
 
 在庫の棚卸のためのStocktakesController のPost作成
 Postgresでの楽観ロック・悲観ロック・排他制御を確認
-
 上記のPostに関係するDTOを2つ作成
-
 上記の内容をSwaggerにて確認テスト実行
 
+11/13(金)
+在庫の棚卸のためのStocktakesController のGetとPut作成
+上記のPutに関係するDTOを2つ作成
+Put時の実棚数量の入力チェック、ステータスチェック、棚卸明細の存在確
+上記の内容をSwaggerにて確認テスト実行
 
 
