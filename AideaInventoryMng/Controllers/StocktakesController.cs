@@ -248,5 +248,88 @@ namespace AideaInventoryMng.Controllers
             return Ok(response);
         }
 
+        [HttpPut("{id:long}/lines/{lineId:long}")]
+        public async Task<ActionResult<StocktakeLineResponse>> UpdateStocktakeLine(
+            long id,
+            long lineId, 
+            [FromBody] UpdateStocktakeLineRequest request)
+        {
+            var stocktake = await _context.Stocktakes.FirstOrDefaultAsync(s => s.Id == id);
+
+            //Stocktakeが存在しない場合は404を返す
+            if (stocktake == null)
+            {
+                return NotFound(new
+                {
+                    code = "NOT_FOUND",
+                    message = "棚卸データが存在しません。"
+                });
+            }
+
+            // ③ 棚卸ステータスの確認
+            if (stocktake.Status != "IN_PROGRESS")
+            {
+                return Conflict(new
+                {
+                    code = "INVALID_STOCKTAKE_STATUS",
+                    message = "実棚数量を更新できるのはIN_PROGRESS状態のデータのみです。"
+                });
+            }
+
+            // ④ 実棚数量の入力確認
+            if (request.ActualQuantity < 0 )
+            {
+                return BadRequest(new
+                {
+                    code = "INVALID_ACTUAL_QUANTITY",
+                    message = "実棚数量は0以上を指定してください。"
+                });
+            }
+
+
+            // ⑤ 棚卸明細を取得
+            var line = await _context.StocktakeLines
+                .Include(l => l.Product)
+                .Include(l => l.Location)
+                .FirstOrDefaultAsync(l =>
+                l.Id == lineId &&
+                l.StocktakeId == id);
+
+            // ⑥ 棚卸明細の存在確認
+            if (line == null)
+            {
+                return NotFound(new
+                {
+                    code = "NOT_FOUND",
+                    message = "棚卸明細が存在しません。"
+                });
+            }
+
+            // ⑦ 実棚数量と棚卸差異を更新
+            line.ActualQuantity = request.ActualQuantity;
+            line.DifferenceQuantity = request.ActualQuantity - line.BookQuantity;
+
+            line.UpdatedAt = DateTime.UtcNow;
+
+            // ⑧ DBに保存
+            await _context.SaveChangesAsync();
+
+            // ⑨ レスポンス作成
+            var response = new StocktakeLineResponse
+            {
+                Id = line.Id,
+                ProductId = line.ProductId,
+                ProductCode = line.Product.ProductCode,
+                ProductName = line.Product.Name,
+                LocationId = line.LocationId,
+                LocationCode = line.Location.LocationCode,
+                BookQuantity = line.BookQuantity,
+                ActualQuantity = line.ActualQuantity,
+                DifferenceQuantity = line.DifferenceQuantity
+            };
+
+            return Ok(response);
+        }
+
     }
 }
