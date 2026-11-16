@@ -56,22 +56,83 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 - 在庫行の初回作成が同時に重なった場合(ユニーク制約違反)も、同じ再試行を行う
 
 ### 2.5 共通の更新項目
+
 `SaveChanges` の共通処理で、次の項目を自動的に設定する。
 
 | タイミング | 設定する項目 |
 |---|---|
-| 追加時 | `created_at`(現在日時)。`created_by` は現状NULL |
-| 更新時 | `updated_at`(現在日時)。`version` を持つテーブルは `version` を+1。`updated_by` は現状NULL |
+| 追加時 | `created_at`（現在日時）。`created_by` は現状NULL |
+| 更新時 | `updated_at`（現在日時）。`version` を持つテーブルは `version` を+1。`updated_by` は現状NULL |
+
+`version` による楽観的排他制御の対象テーブルは、`products`、`stocks`、`stocktakes` とする。
+
+棚卸ヘッダーの状態変更（DRAFTからIN_PROGRESS、IN_PROGRESSからCOMPLETEDまたはCANCELLED）でも、`version` を更新する。
+
+棚卸明細（`stocktake_lines`）は、現時点では `version` による排他制御を行わない。
 
 入出庫履歴は追加のみで、`created_at` だけを設定する。日時はすべてUTCで扱う。
 
+
 ### 2.6 論理削除の扱い
+
 マスタの検索・参照は、`deleted_at` がNULLの行だけを対象にする(EF Coreのグローバルクエリフィルターを使う案)。
 
-### 2.7 棚卸中チェック(共通)
-倉庫IDを指定して、その倉庫に実施中の棚卸(`stocktakes` の `warehouse_id` が一致し、`status` が `IN_PROGRESS`)があるかを確認する。あれば409(`STOCKTAKE_IN_PROGRESS`)。
 
-入庫、出庫、引当、引当解除、在庫移動(移動元と移動先の両倉庫)が、処理の最初に行う。
+### 2.7 棚卸中チェックと排他制御（共通）
+
+倉庫IDを指定して、その倉庫に実施中の棚卸（`stocktakes` の `warehouse_id` が一致し、`status` が `IN_PROGRESS`）があるかを確認する。
+
+棚卸中の場合は、対象倉庫の在庫数量に影響する処理を制限し、409（`STOCKTAKE_IN_PROGRESS`）を返す。
+
+対象となる処理：
+
+- 入庫
+- 出庫
+- 引当
+- 引当解除
+- 在庫移動（移動元と移動先の両方）
+
+#### ロケーション行のロック
+
+棚卸開始と在庫更新処理が同時に実行されても、帳簿数量と在庫数量に不整合が発生しないよう、PostgreSQLの `SELECT ... FOR UPDATE` を使用する。
+
+以下のルールを共通とする。
+
+- 在庫数量に影響する処理は、対象ロケーションの行をロックしてから棚卸中チェックを行う。
+- 棚卸開始処理は、対象倉庫のロケーション行をロケーションIDの昇順でロックしてから、棚卸明細の作成と状態変更を行う。
+- 在庫移動など複数ロケーションを扱う処理では、ロケーションIDの昇順でロックする。
+- ロックの取得、棚卸中チェック、在庫更新は同一トランザクション内で行う。
+
+棚卸開始と在庫更新処理が同じロケーション行をロックすることで、どちらか一方の処理が完了するまで、もう一方の処理は待機する。
+
+これにより、棚卸開始時の帳簿数量取得と在庫更新が同時に実行されることを防ぐ。
+
+#### 棚卸確定時のロック
+
+棚卸確定処理でも、対象倉庫のロケーション行をロケーションIDの昇順でロックする。
+
+その後、対象となる在庫行を在庫IDの昇順でロックする。
+
+ロケーション行と在庫行のロック、在庫数量の確認・更新、在庫調整履歴の登録、棚卸状態の更新は、同一トランザクション内で行う。
+
+棚卸の中止処理でも、対象倉庫のロケーション行をロックしてから棚卸状態を変更する。
+
+複数のロケーションや在庫行をロックする場合は、必ずIDの昇順で取得する。
+
+#### 棚卸関連処理のロック取得順序
+
+棚卸関連処理では、デッドロックを防ぐため、原則として次の順序でロックを取得する。
+
+1. 対象ロケーション行（ロケーションIDの昇順）
+2. 棚卸ヘッダー行
+3. 対象在庫行（在庫IDの昇順）
+
+棚卸ヘッダーから倉庫IDを取得する場合は、最初にロックを取得しない読み取りを行う。
+その後、ロケーション行をロックし、棚卸ヘッダー行をロックしてから、状態やversionを再確認する。
+
+ただし、実棚数量の更新処理は棚卸ヘッダー行のみをロックする。
+この処理ではロケーション行や在庫行のロックを後から取得しない。
+
 
 ### 2.8 ログ
 - 構造化ログを標準出力に出す(AWSではCloudWatch Logsで確認する)
@@ -89,18 +150,19 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 | P03 | 引当 | POST /api/stocks/reserve | StockService | Day 9 |
 | P04 | 引当解除 | POST /api/stocks/release | StockService | Day 9 |
 | P05 | 在庫移動 | POST /api/transfers | StockService | Day 12 |
-| P06 | 棚卸の開始 | POST /api/stocktakes | StocktakeService | Day 13 |
-| P07 | 実数量の入力 | PUT /api/stocktakes/{id}/lines/{lineId} | StocktakeService | Day 13 |
-| P08 | 棚卸の確定 | POST /api/stocktakes/{id}/complete | StocktakeService | Day 13 |
-| P09 | 棚卸の中止 | POST /api/stocktakes/{id}/cancel | StocktakeService | Day 13 |
-| P10 | 商品の削除 | DELETE /api/products/{id} | ProductService | Day 4 |
-| P11 | 倉庫の削除 | DELETE /api/warehouses/{id} | WarehouseService | Day 5 |
-| P12 | ロケーションの削除 | DELETE /api/locations/{id} | LocationService | Day 5 |
-| P13 | マスタの登録・更新 | POST・PUT(商品・倉庫・ロケーション) | 各マスタのService | Day 4〜5 |
-| P14 | 在庫の照会・集計 | GET /api/stocks、/api/stocks/summary | StockQueryService | Day 11 |
-| P15 | 在庫下限アラートの検出 | GET /api/stock-alerts | StockQueryService | Day 14 |
-| P16 | CSV出力 | GET /api/stock-movements/export、/api/stocks/export | StockQueryService | Day 15 |
-
+| P06 | 棚卸ヘッダーの作成 | POST /api/stocktakes | StocktakeService | Day 13 |
+| P07 | 棚卸の開始 | POST /api/stocktakes/{id}/start | StocktakeService | Day 13 |
+| P08 | 棚卸明細の追加 | POST /api/stocktakes/{id}/lines | StocktakeService | Day 13 |
+| P09 | 実棚数量の入力・更新 | PUT /api/stocktakes/{id}/lines/{lineId} | StocktakeService | Day 13 |
+| P10 | 棚卸の確定 | POST /api/stocktakes/{id}/complete | StocktakeService | Day 13 |
+| P11 | 棚卸の中止 | POST /api/stocktakes/{id}/cancel | StocktakeService | Day 13 |
+| P12 | 商品の削除 | DELETE /api/products/{id} | ProductService | Day 4 |
+| P13 | 倉庫の削除 | DELETE /api/warehouses/{id} | WarehouseService | Day 5 |
+| P14 | ロケーションの削除 | DELETE /api/locations/{id} | LocationService | Day 5 |
+| P15 | マスタの登録・更新 | POST・PUT(商品・倉庫・ロケーション) | 各マスタのService | Day 4〜5 |
+| P16 | 在庫の照会・集計 | GET /api/stocks、/api/stocks/summary | StockQueryService | Day 11 |
+| P17 | 在庫下限アラートの検出 | GET /api/stock-alerts | StockQueryService | Day 14 |
+| P18 | CSV出力 | GET /api/stock-movements/export、/api/stocks/export | StockQueryService | Day 15 |
 ---
 
 ## 4. 処理詳細
@@ -196,63 +258,239 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 
 **エラー**: 400、404、409(`INSUFFICIENT_STOCK`、`STOCKTAKE_IN_PROGRESS`、`VERSION_CONFLICT`)
 
-### 4.6 P06 棚卸の開始
+### 4.6 P06 棚卸ヘッダーの作成
+
+**対応API:** POST /api/stocktakes
 
 **手順**
-1. 入力を検証する
-2. 倉庫の存在を確認する。なければ404
-3. その倉庫に実施中の棚卸がある場合は、409(`STOCKTAKE_IN_PROGRESS`)(案)
-4. 棚卸を追加する(状態は `IN_PROGRESS`)
-5. 倉庫に属するロケーション(削除済みを除く)の在庫行をすべて取得し、棚卸明細として追加する(帳簿数量 = 現在の在庫数量、実数量 = NULL)(案)
-6. 保存する
+
+1. 入力を検証する（warehouseId、stocktakeDateなど）。
+2. 対象倉庫の存在を確認する。存在しない場合は404（`NOT_FOUND`）。
+3. 同じ倉庫に `IN_PROGRESS` の棚卸が存在しないことを確認する。存在する場合は409（`STOCKTAKE_IN_PROGRESS`）。
+4. 棚卸ヘッダーを追加する。
+5. 状態は `DRAFT` とする。
+6. 保存する。
 
 **更新内容**
 
 | テーブル | 操作 | 内容 |
 |---|---|---|
-| stocktakes | 追加 | `status` = IN_PROGRESS、`stocktake_date` |
-| stocktake_lines | 追加(複数行) | `book_quantity` = 在庫数量、`actual_quantity` = NULL |
+| stocktakes | 追加 | `warehouse_id`、`stocktake_date`、`remarks`、`status` = DRAFT、`version` |
 
-### 4.7 P07 実数量の入力
+この処理では、棚卸明細の作成や在庫数量の固定は行わない。
+
+**エラー:** 400、404（`NOT_FOUND`）、409（`STOCKTAKE_IN_PROGRESS`）
+
+---
+
+### 4.7 P07 棚卸の開始
+
+**対応API:** POST /api/stocktakes/{id}/start
 
 **手順**
-1. 入力を検証する(0以上)
-2. 棚卸と明細を取得する。明細が指定した棚卸のものでなければ404
-3. 棚卸の状態が `IN_PROGRESS` であることを確認する。違えば409(`INVALID_STATE`)
-4. 明細の実数量を更新して保存する
 
-### 4.8 P08 棚卸の確定
-
-**手順**
-1. 棚卸を取得し、送られた `version` と比較する。違えば409(`VERSION_CONFLICT`)
-2. 状態が `IN_PROGRESS` であることを確認する。違えば409(`INVALID_STATE`)
-3. 実数量が未入力の明細がないことを確認する。あれば409(`INVALID_STATE`)(案)
-4. 各明細の差異(実数量 − 帳簿数量)を求める
-5. 差異が0でない明細について、次を行う
-   1. 在庫行を取得する。在庫数量が帳簿数量と一致しない場合は、棚卸中に在庫が動いたことになるため、409(`INVALID_STATE`)として確定しない(案)
-   2. 在庫数量を実数量に更新する
-   3. 入出庫履歴を追加する
-6. 棚卸の状態を `COMPLETED` にし、確定日時を設定する
-7. 保存する(1つのトランザクション)
+1. 棚卸ヘッダーを取得する（ロックなし）。存在しなければ404（`NOT_FOUND`）。
+2. 対象倉庫のロケーション行をロケーションIDの昇順でロックする。
+3. 棚卸ヘッダーの行ロックを取得し、最新の状態を読み直す。
+4. 状態が `DRAFT` であることを確認する。違えば409（`INVALID_STOCKTAKE_STATUS`）。
+5. 同じ倉庫に別の `IN_PROGRESS` の棚卸が存在しないことを確認する。存在する場合は409（`STOCKTAKE_IN_PROGRESS`）。
+6. 対象倉庫の在庫行を取得する。
+7. 在庫行ごとに棚卸明細を作成する。
+8. 棚卸状態を `IN_PROGRESS` に変更する。
+9. 明細作成と状態変更を同一トランザクションで保存する。
 
 **更新内容**
 
 | テーブル | 操作 | 内容 |
 |---|---|---|
-| stocks | 更新 | `quantity` = 実数量(差異があった行のみ) |
-| stock_movements | 追加 | `movement_type` = STOCKTAKE_ADJUST、`quantity_change` = 差異、`remarks` に棚卸のID |
-| stocktakes | 更新 | `status` = COMPLETED、`completed_at` = 現在日時 |
+| stocktake_lines | 追加（複数行） | `stock_id` = 対象の在庫ID、`product_id`、`location_id`、`book_quantity` = 棚卸開始時点の在庫数量、`actual_quantity` = NULL、`difference_quantity` = NULL |
+| stocktakes | 更新 | `status` = IN_PROGRESS、`version` を更新 |
 
-実数量が引当数量を下回る場合の扱いは未決(5章)。
+棚卸開始時点の在庫数量を `book_quantity` に保存する。
 
-### 4.9 P09 棚卸の中止
+棚卸明細の `stock_id` には、開始時点の在庫IDを保存する。
+
+**排他制御**
+
+- 対象倉庫のロケーション行をロケーションIDの昇順でロックする。
+- 入庫・出庫・引当・引当解除・在庫移動も同じロケーション行ロックを使用する。
+- ロックの取得から棚卸明細の作成、棚卸状態の変更までを同一トランザクションで行う。
+- これにより、棚卸明細作成中に在庫数量が変更されることを防ぐ。
+
+**エラー:** 404（`NOT_FOUND`）、409（`INVALID_STOCKTAKE_STATUS`、`STOCKTAKE_IN_PROGRESS`）
+
+---
+
+### 4.8 P08 棚卸明細の追加
+
+**対応API:** POST /api/stocktakes/{id}/lines
 
 **手順**
-1. 棚卸を取得し、送られた `version` と比較する。違えば409(`VERSION_CONFLICT`)
-2. 状態が `IN_PROGRESS` であることを確認する。違えば409(`INVALID_STATE`)
-3. 状態を `CANCELLED` にして保存する(在庫は変更しない)
 
-### 4.10 P10〜P12 商品・倉庫・ロケーションの削除
+1. 棚卸ヘッダーを取得する（ロックなし）。存在しなければ404（`NOT_FOUND`）。
+2. 対象ロケーションの行をロックする。
+3. 棚卸ヘッダーの行ロックを取得し、最新の状態を読み直す。
+4. 状態が `IN_PROGRESS` であることを確認する。違えば409（`INVALID_STOCKTAKE_STATUS`）。
+5. 商品とロケーションの存在を確認する。存在しなければ404（`NOT_FOUND`）。
+6. ロケーションが棚卸対象倉庫に属していることを確認する。
+7. 同じ商品・ロケーションの棚卸明細が存在しないことを確認する。存在する場合は409（`DUPLICATE_STOCKTAKE_LINE`）。
+8. 同じ商品・ロケーションの在庫行が存在しないことを確認する。存在する場合は409（`STOCK_ALREADY_EXISTS`）。
+9. 棚卸明細を追加する。
+10. 保存する。
+
+**更新内容**
+
+| テーブル | 操作 | 内容 |
+|---|---|---|
+| stocktake_lines | 追加 | `stock_id` = NULL、`product_id`、`location_id`、`book_quantity` = 0、`actual_quantity` = NULL、`difference_quantity` = NULL |
+
+このAPIは、棚卸中に帳簿に存在しない在庫を発見した場合に使用する。
+
+追加した明細は新規在庫として扱う。
+
+この時点では在庫行の作成や在庫数量の更新は行わない。
+
+**エラー:** 400、404（`NOT_FOUND`）、409（`INVALID_STOCKTAKE_STATUS`、`DUPLICATE_STOCKTAKE_LINE`、`STOCK_ALREADY_EXISTS`）
+
+---
+
+### 4.9 P09 実棚数量の入力・更新
+
+**対応API:** PUT /api/stocktakes/{id}/lines/{lineId}
+
+**手順**
+
+1. 入力を検証する。実棚数量は0以上とする。負数の場合は400（`INVALID_ACTUAL_QUANTITY`）。
+2. 棚卸ヘッダーを取得する。存在しなければ404（`NOT_FOUND`）。
+3. 棚卸ヘッダーの行ロックを取得し、最新の状態を読み直す。
+4. 棚卸状態が `IN_PROGRESS` であることを確認する。違えば409（`INVALID_STOCKTAKE_STATUS`）。
+5. 棚卸明細を取得する。指定した棚卸に属していなければ404（`NOT_FOUND`）。
+6. 実棚数量を更新する。
+7. 差異数量を計算する。
+8. 保存する。
+
+**更新内容**
+
+| テーブル | 操作 | 内容 |
+|---|---|---|
+| stocktake_lines | 更新 | `actual_quantity` = 入力された実棚数量 |
+| stocktake_lines | 更新 | `difference_quantity` = 実棚数量 − 帳簿数量 |
+
+実棚数量が0の場合も登録可能とする。
+
+このAPIでは在庫数量を更新しない。
+
+在庫数量の更新と在庫調整履歴の登録は、棚卸確定処理で行う。
+
+**排他制御**
+
+- 棚卸ヘッダーの行ロックを取得してから、状態が `IN_PROGRESS` であることを確認する。
+- 棚卸確定処理も同じ棚卸ヘッダーの行ロックを取得する。
+- 棚卸ヘッダーのロック取得から実棚数量・差異数量の更新までを同一トランザクションで行う。
+- この処理ではロケーション行や在庫行のロックは取得しない。
+
+これにより、実棚数量の更新と棚卸確定処理が同時に実行されることを防ぐ。
+
+**エラー:** 400（`VALIDATION_ERROR`、`INVALID_ACTUAL_QUANTITY`）、404（`NOT_FOUND`）、409（`INVALID_STOCKTAKE_STATUS`）
+
+---
+
+### 4.10 P10 棚卸の確定
+
+**対応API:** POST /api/stocktakes/{id}/complete
+
+**手順**
+
+1. 棚卸ヘッダーを取得する（ロックなし）。存在しなければ404（`NOT_FOUND`）。
+2. 対象倉庫のロケーション行をロケーションIDの昇順でロックする。
+3. 棚卸ヘッダーの行ロックを取得する。
+4. リクエストの `version` と現在の棚卸ヘッダーの `version` を比較する。一致しなければ409（`VERSION_CONFLICT`）。
+5. 状態が `IN_PROGRESS` であることを確認する。違えば409（`INVALID_STOCKTAKE_STATUS`）。
+6. すべての棚卸明細に実棚数量が入力されていることを確認する。未入力があれば409（`INVALID_STATE`）。
+7. 棚卸明細に対応する既存在庫行を在庫IDの昇順でロックする。
+8. 各明細について、差異数量を計算する。
+9. `stock_id` の有無によって、既存在庫と新規在庫の処理を分ける。
+10. 在庫数量の更新、新規在庫行の作成、在庫調整履歴の登録を行う。
+11. 棚卸状態を `COMPLETED` に変更し、確定日時を設定する。
+12. すべての処理を同一トランザクションで保存する。
+
+**既存在庫の更新（stock_idあり）**
+
+- 現在の在庫数量が棚卸開始時点の帳簿数量（`book_quantity`）と一致することを確認する。
+- 一致しない場合は409（`STOCKTAKE_QUANTITY_CONFLICT`）を返す。
+- 実棚数量が現在の引当数量を下回る場合は409（`RESERVED_QUANTITY_CONFLICT`）を返す。
+- 在庫数量を実棚数量に更新する。
+- 引当数量は変更しない。
+
+**新規在庫の登録（stock_idなし）**
+
+- 同じ商品・ロケーションの在庫行が既に存在しないことを確認する。
+- 既に存在する場合は409（`STOCK_ALREADY_EXISTS`）を返す。
+- 実棚数量が1以上の場合は、在庫行を新規作成する。
+- 新規在庫の引当数量は0とする。
+- 実棚数量が0の場合は、在庫行を作成しない。
+
+**在庫調整履歴**
+
+- 差異数量が0以外の場合、入出庫履歴に `STOCKTAKE_ADJUST` を登録する。
+- 履歴の `quantity_change` には差異数量を設定する。
+- 差異数量が0の場合は在庫調整履歴を登録しない。
+- 新規在庫の場合も、実棚数量が1以上であれば帳簿数量0からの増加として履歴を登録する。
+
+**更新内容**
+
+| テーブル | 操作 | 内容 |
+|---|---|---|
+| stocks | 更新 | 既存在庫の `quantity` = 実棚数量 |
+| stocks | 追加 | 新規在庫の `product_id`、`location_id`、`quantity` = 実棚数量、`reserved_quantity` = 0 |
+| stock_movements | 追加 | `movement_type` = STOCKTAKE_ADJUST、`quantity_change` = 差異数量 |
+| stocktakes | 更新 | `status` = COMPLETED、`completed_at` = 現在日時、`version` を更新 |
+
+上記の処理はすべて同一トランザクションで実行する。
+
+途中でエラーが発生した場合は、在庫数量・在庫行・履歴・棚卸状態のすべてをロールバックする。
+
+**エラー**
+
+- 400（`VALIDATION_ERROR`）
+- 404（`NOT_FOUND`）
+- 409（`VERSION_CONFLICT`）
+- 409（`INVALID_STOCKTAKE_STATUS`）
+- 409（`STOCKTAKE_QUANTITY_CONFLICT`）
+- 409（`RESERVED_QUANTITY_CONFLICT`）
+- 409（`STOCK_ALREADY_EXISTS`）
+- 409（`INVALID_STATE`）
+
+---
+
+### 4.11 P11 棚卸の中止
+
+**対応API:** POST /api/stocktakes/{id}/cancel
+
+**手順**
+
+1. 棚卸ヘッダーを取得する（ロックなし）。存在しなければ404（`NOT_FOUND`）。
+2. 対象倉庫のロケーション行をロケーションIDの昇順でロックする。
+3. 棚卸ヘッダーの行ロックを取得する。
+4. リクエストの `version` と現在の棚卸ヘッダーの `version` を比較する。一致しなければ409（`VERSION_CONFLICT`）。
+5. 状態が `IN_PROGRESS` であることを確認する。違えば409（`INVALID_STOCKTAKE_STATUS`）。
+6. 棚卸状態を `CANCELLED` に変更する。
+7. 保存する。
+
+**更新内容**
+
+| テーブル | 操作 | 内容 |
+|---|---|---|
+| stocktakes | 更新 | `status` = CANCELLED、`version` を更新 |
+
+棚卸の中止では、在庫数量の更新や在庫調整履歴の登録は行わない。
+
+棚卸状態を `CANCELLED` に変更することで、棚卸中の在庫操作制限を解除する。
+
+**エラー:** 400（`VALIDATION_ERROR`）、404（`NOT_FOUND`）、409（`VERSION_CONFLICT`、`INVALID_STOCKTAKE_STATUS`）
+
+
+### 4.12 P12〜P14 商品・倉庫・ロケーションの削除
 
 **手順**
 1. 対象を取得する。存在しない、または削除済みなら404
@@ -264,7 +502,7 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 
 在庫数量・引当数量がともに0の在庫行は、そのまま残す(履歴との整合のため)。
 
-### 4.11 P13 マスタの登録・更新
+### 4.13 P15 マスタの登録・更新
 
 **登録**
 1. 入力を検証する
@@ -278,13 +516,13 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 3. 送られた `version` と比較する。違えば409(`VERSION_CONFLICT`)
 4. コード(ロケーションは倉庫も)は変更せず、それ以外の項目を更新して保存する(案)
 
-### 4.12 P14 在庫の照会・集計
+### 4.14 P16 在庫の照会・集計
 
 - 検索条件に応じて `stocks` を検索する。引当可能数は、在庫数量 − 引当数量で求める
 - 集計は、`groupBy` が `product` なら商品ごとに全倉庫を合算し、`warehouse` なら商品 × 倉庫ごとにロケーションを合算する
 - 削除済みの商品・ロケーションの在庫行は、結果に含めない(案)
 
-### 4.13 P15 在庫下限アラートの検出
+### 4.15 P17 在庫下限アラートの検出
 
 **手順**
 1. 削除されておらず、在庫下限数量が設定されている商品を対象にする
@@ -292,7 +530,7 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 3. 合計が在庫下限数量を下回る商品を返す。不足数は「在庫下限数量 − 合計」
 4. 並び順は、不足数の大きい順(案)
 
-### 4.14 P16 CSV出力
+### 4.16 P18 CSV出力
 
 - 対応する検索APIと同じ絞り込み条件・並び順で、ページングを行わずに全件を出力する
 - 文字コードはUTF-8(BOM付き)で、ヘッダ行を付ける(案)
@@ -302,28 +540,30 @@ APIの背後で動く業務処理(Services層)について、処理の手順、�
 
 ## 5. 既知の制約と未決事項
 
-### 5.1 既知の制約(案)
+### 5.1 既知の制約
 
 | 項目 | 内容 |
 |---|---|
-| 棚卸の開始と入出庫の同時実行 | 棚卸中チェックと在庫の更新は別々に行うため、棚卸の開始と入庫などがごく短い間に重なると、帳簿数量と在庫がずれる可能性がある。確定時に在庫数量と帳簿数量の一致を確認して検出する(P08の手順5-1)。行ロックなどで完全に防ぐ仕組みは、今回は入れない |
-| 削除と入庫の同時実行 | 在庫のチェックと論理削除の間に入庫が入ると、削除済みのマスタに在庫が残る可能性がある。今回は許容する |
-| 再試行の上限 | 競合時の再試行は最大3回。超えた場合は409 |
+| 棚卸明細の実棚数量更新 | 明細単位のversionによる排他制御は行わない。棚卸ヘッダーの行ロックを取得し、状態がIN_PROGRESSであることを確認して更新する |
+| 在庫更新と棚卸開始の排他制御 | 対象ロケーションの行ロックを使用する。ロックの取得から更新まで同一トランザクションで実行する |
+| 棚卸確定時の排他制御 | ロケーション行をロケーションIDの昇順、在庫行を在庫IDの昇順でロックする |
+| 再試行の上限 | 競合時の再試行は最大3回。超えた場合は409を返す |
+| 認証・権限 | 現時点では対象外とする |
 
 ### 5.2 未決事項
 
 | 項目 | 決定予定 | 備考 |
 |---|---|---|
-| 出庫と引当の関係(`useReservation` の扱い) | Day 9 | P02の手順5 |
+| 出庫と引当の関係（`useReservation` の扱い） | Day 9 | P02の処理 |
 | 移動番号の採番方法 | Day 12 | シーケンスを使う案 |
-| 棚卸の確定時、実数量が引当数量を下回る場合 | Day 13 | 引当数量との整合の扱い |
-| 棚卸で帳簿にない在庫を見つけた場合の明細追加 | Day 13 | |
-| 競合時の再試行回数 | Day 10 | 排他制御の検証時に確認 |
 | 削除済みマスタの在庫を照会に含めるか | Day 11 | 現案は含めない |
 | アラートの並び順 | Day 14 | 現案は不足数の大きい順 |
+
+| 棚卸明細のstockIdと商品・ロケーションの整合性チェックの実装確認 | 棚卸確定API実装時 | 方針はアプリケーション側で検証。stock_idがNULLでない場合、参照先在庫のproduct_idとlocation_idが棚卸明細の値と一致することを確認する |
 
 ### 5.3 変更履歴
 
 | 版 | 日付 | 内容 |
 |---|---|---|
-| 初版 | 2026-11-04 | 新規作成(共通処理、処理一覧、主要な処理の手順) |
+| 初版 | 2026-11-04 | 新規作成（共通処理、処理一覧、主要な処理の手順） |
+| 改訂 | 2026-11-16 | 棚卸処理をヘッダー作成・開始・明細追加・実棚入力・確定・中止に分割。排他制御と在庫調整処理を明確化 |

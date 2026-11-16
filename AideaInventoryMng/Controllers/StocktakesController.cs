@@ -1,4 +1,5 @@
-﻿using AideaInventoryMng.Data;
+﻿using System.Collections;
+using AideaInventoryMng.Data;
 using AideaInventoryMng.DTO.Stocks;
 using AideaInventoryMng.DTO.Stocktakes;
 using AideaInventoryMng.Models;
@@ -329,6 +330,238 @@ namespace AideaInventoryMng.Controllers
             };
 
             return Ok(response);
+        }
+
+        [HttpPost("{id}/complete")]
+        public async Task<IActionResult> CompleteStocktake(long id)
+        {
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // 棚卸データを取得
+                var stocktake = await _context.Stocktakes
+                    .FirstOrDefaultAsync(x => x.Id == id);
+
+                if (stocktake == null)
+                {
+                    return NotFound(new
+                    {
+                        code = "NOT_FOUND",
+                        message = "棚卸データが存在しません。"
+                    });
+                }
+
+                // 棚卸中のデータのみ確定可能
+                if (stocktake.Status != "IN_PROGRESS")
+                {
+                    return Conflict(new
+                    {
+                        code = "INVALID_STOCKTAKE_STATUS",
+                        message = "棚卸中のデータのみ確定できます。"
+                    });
+                }
+
+                // 対象倉庫のロケーションをロック
+                // 入庫・出庫などの在庫更新処理との競合を防止する
+                var lockedLocations = await _context.Database
+                    .SqlQuery<long>($@"
+                    SELECT id AS ""Value""
+                    FROM locations
+                    WHERE warehouse_id = {stocktake.WarehouseId}
+                    AND deleted_at IS NULL
+                    FOR UPDATE").ToListAsync();
+
+                // 棚卸明細を取得
+                var lines = await _context.StocktakeLines
+                    .Where(x => x.StocktakeId == id)
+                    .ToListAsync();
+
+                // 実棚数量が未入力の明細がないか確認
+                if (lines.Any(x => x.ActualQuantity == null))
+                {
+                    return Conflict(new
+                    {
+                        code = "ACTUAL_QUANTITY_NOT_ENTERED",
+                        message = "実棚数量が未入力の明細があります。"
+                    });
+                }
+
+                var now = DateTime.UtcNow;
+
+                foreach (var line in lines)
+                {
+                    // 商品IDとロケーションIDから在庫を取得
+                    var stock = await _context.Stocks
+                        .FirstOrDefaultAsync(x =>
+                            x.ProductId == line.ProductId &&
+                            x.LocationId == line.LocationId);
+                    
+                    if (stock == null)
+                    {
+                        return Conflict(new
+                        {
+                            code = "STOCK_NOT_FOUND",
+                            message = "棚卸対象の在庫データが存在しません。"
+                        });
+                    }
+
+                    var actualQuantity = line.ActualQuantity!.Value;
+                    var differenceQuantity =
+                        actualQuantity - line.BookQuantity;
+
+                    // 棚卸開始時の帳簿数量と現在の在庫数量を比較
+                    if (stock.Quantity != line.BookQuantity)
+                    {
+                        return Conflict(new
+                        {
+                            code = "STOCK_QUANTITY_CONFLICT",
+                            message = "棚卸開始後に在庫数量が変更されています。"
+                        });
+                    }
+
+                    // 実棚数量が引当数量を下回っていないか確認
+                    if (actualQuantity < stock.ReservedQuantity)
+                    {
+                        return Conflict(new
+                        {
+                            code = "ACTUAL_QUANTITY_BELOW_RESERVED",
+                            message = "実棚数量が引当数量を下回っています。"
+                        });
+                    }
+
+                    // 在庫数量を実棚数量に更新
+                    stock.Quantity = actualQuantity;
+                    stock.Version++;
+                    stock.UpdatedAt = now;
+
+                    // 差異がある場合のみ在庫移動履歴を登録
+                    if (differenceQuantity != 0)
+                    {
+                        var movement = new StockMovement
+                        {
+                            ProductId = line.ProductId,
+                            LocationId = line.LocationId,
+                            MovementType = "STOCKTAKE_ADJUST",
+                            QuantityChange = differenceQuantity,
+                            OccurredAt = now,
+                            Remarks = "棚卸による在庫調整",
+                            CreatedAt = now
+                        };
+
+                        _context.StockMovements.Add(movement);
+                    }
+                }
+
+                // 棚卸状態を確定済みに変更
+                stocktake.Status = "COMPLETED";
+                stocktake.UpdatedAt = now;
+
+                await _context.SaveChangesAsync();
+
+                // トランザクション確定
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    id = stocktake.Id,
+                    warehouseId = stocktake.WarehouseId,
+                    status = stocktake.Status,
+                    message = "棚卸を確定しました。"
+                });
+
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                await transaction.RollbackAsync();
+
+                return Conflict(new
+                {
+                    code = "VERSION_CONFLICT",
+                    message = "在庫データが他の処理によって更新されました。"
+                });
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+        }
+
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> CancelStocktake(long id)
+        {
+            // トランザクション開始
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var stocktake = await _context.Stocktakes
+                    .FirstOrDefaultAsync(x => x.Id == id);
+
+                if(stocktake == null)
+                {
+                    return NotFound(new
+                    {
+                        code = "NOT_FOUND",
+                        message = "棚卸データが存在しません。"
+                    });
+                }
+
+                // 対象倉庫のロケーションをロック
+                await _context.Database.SqlQuery<long>($"""
+                    SELECT id AS "Value"
+                    FROM locations 
+                    WHERE warehouse_id = {stocktake.WarehouseId}
+                    AND deleted_at IS NULL
+                    ORDER BY id 
+                    FOR UPDATE
+                    """)
+                    .ToListAsync();
+
+                // ロック取得後に棚卸データを再読み込み
+                await _context.Entry(stocktake).ReloadAsync();
+
+                // キャンセル可能な状態か確認
+                if (stocktake.Status != "DRAFT" &&
+                    stocktake.Status != "IN_PROGRESS")
+                {
+                    return Conflict(new
+                    {
+                        code = "INVALID_STOCKTAKE_STATUS",
+                        message = "DRAFTまたはIN_PROGRESS状態の棚卸のみキャンセルできます。"
+                    });
+                }
+
+                // 棚卸状態をキャンセル済みに変更
+                stocktake.Status = "CANCELLED";
+                stocktake.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                // トランザクション確定
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    id = stocktake.Id,
+                    warehouseId = stocktake.WarehouseId,
+                    status = stocktake.Status,
+                    message = "棚卸をキャンセルしました。"
+                });
+
+
+
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
         }
 
     }
