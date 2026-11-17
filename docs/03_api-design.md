@@ -271,3 +271,120 @@
 
 - 中止後の棚卸ヘッダーを返す
 - HTTPステータスは200(OK)
+
+
+### 4.9 在庫変動履歴（StockMovement）
+
+#### 4.9.1 レスポンスの項目（StockMovement）
+
+| 項目 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | 在庫変動履歴ID |
+| productId | 整数 | 商品ID |
+| productCode | 文字列 | 商品コード |
+| productName | 文字列 | 商品名 |
+| warehouseId | 整数 | 倉庫ID |
+| warehouseCode | 文字列 | 倉庫コード |
+| locationId | 整数 | ロケーションID |
+| locationCode | 文字列 | ロケーションコード |
+| movementType | 文字列 | 在庫変動種別 |
+| quantityChange | 整数 | 在庫増減数量（プラス・マイナス） |
+| transferNo | 整数（null可） | 移動番号 |
+| occurredAt | 日時 | 在庫変動発生日時（UTC） |
+| remarks | 文字列（null可） | 備考 |
+| createdAt | 日時 | 登録日時（UTC） |
+
+#### 4.9.2 在庫変動種別（MovementType）
+
+| 値 | 説明 |
+|---|---|
+| RECEIPT | 入庫 |
+| ISSUE | 出庫 |
+| TRANSFER_OUT | 在庫移動（移動元） |
+| TRANSFER_IN | 在庫移動（移動先） |
+| STOCKTAKE_ADJUST | 棚卸確定による在庫調整 |
+
+※ 引当・引当解除は在庫変動履歴に記録しない。
+
+※ 棚卸確定時、差異数量が0の場合は履歴を登録しない。
+
+#### 4.9.3 GET /api/stock-movements（在庫変動履歴一覧）
+
+クエリパラメータ：
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| productId | 整数 | | 商品IDによる絞り込み |
+| warehouseId | 整数 | | 倉庫IDによる絞り込み |
+| locationId | 整数 | | ロケーションIDによる絞り込み |
+| movementType | 文字列 | | 在庫変動種別による絞り込み |
+| from | 日時 | | 発生日時の開始（UTC） |
+| to | 日時 | | 発生日時の終了（UTC） |
+| page | 整数 | | ページ番号（既定値1） |
+| pageSize | 整数 | | 1ページあたりの件数（既定値20） |
+
+処理：
+
+- 指定された検索条件に応じて在庫変動履歴を検索する。
+- 商品、ロケーション、倉庫の情報を取得する。
+- 削除済みのマスタに関連する履歴も表示対象とする。
+- 発生日時（occurredAt）の降順、履歴ID（id）の降順で並べる。
+- ページングを行う。
+
+応答：
+
+- 在庫変動履歴のページング形式で返す。
+- 各履歴には商品情報、倉庫情報、ロケーション情報を含める。
+- HTTPステータスは200（OK）。
+
+#### 4.9.4 GET /api/stock-movements/{id}（在庫変動履歴詳細）
+
+処理：
+
+- 指定された在庫変動履歴を取得する。
+- 商品、倉庫、ロケーションの情報を含める。
+- 履歴は追加のみとし、更新・削除APIは提供しない。
+
+エラー：
+
+- 404（NOT_FOUND：指定された履歴が存在しない）
+
+応答：
+
+- 在庫変動履歴の詳細を返す。
+- HTTPステータスは200（OK）。
+
+#### 4.9.5 GET /api/stock-movements/export（在庫変動履歴CSV出力）
+
+クエリパラメータ：
+
+- GET /api/stock-movements と同じ検索条件を使用する。
+- page、pageSizeは指定しない。
+
+処理：
+
+- GET /api/stock-movements と同じ絞り込み条件・並び順で全件を取得する。
+- CSV形式で出力する。
+- 文字コードはUTF-8（BOM付き）とする。
+- ヘッダー行を付ける。
+- 件数が多い場合に備えてストリーミングで返す。
+
+CSV出力項目：
+
+| 項目 | 説明 |
+|---|---|
+| id | 履歴ID |
+| occurredAt | 発生日時 |
+| movementType | 在庫変動種別 |
+| productCode | 商品コード |
+| productName | 商品名 |
+| warehouseCode | 倉庫コード |
+| locationCode | ロケーションコード |
+| quantityChange | 在庫増減数量 |
+| transferNo | 移動番号 |
+| remarks | 備考 |
+
+応答：
+
+- Content-Typeはtext/csvとする。
+- ファイル名はstock-movements.csvとする。

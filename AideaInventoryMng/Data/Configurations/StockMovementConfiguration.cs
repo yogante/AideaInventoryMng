@@ -54,15 +54,23 @@ namespace AideaInventoryMng.Data.Configurations
             builder.Property(s => s.Id).HasColumnName("id");
             builder.Property(s => s.ProductId).HasColumnName("product_id");
             builder.Property(s => s.LocationId).HasColumnName("location_id");
-            builder.Property(s => s.MovementType).HasColumnName("movement_type");
+            builder.Property(s => s.MovementType).HasColumnName("movement_type")
+                .HasMaxLength(30).IsRequired();
             builder.Property(s => s.QuantityChange).HasColumnName("quantity_change");
             builder.Property(s => s.TransferNo).HasColumnName("transfer_no");
+            // 発生日時
             builder.Property(s => s.OccurredAt).HasColumnName("occurred_at")
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
-            builder.Property(s => s.Remarks).HasColumnName("remarks");
+                .HasColumnType("timestamp with time zone").IsRequired();
+            builder.Property(s => s.Remarks).HasColumnName("remarks").HasMaxLength(200);
+            // 登録日時
             builder.Property(s => s.CreatedAt).HasColumnName("created_at")
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                .HasColumnType("timestamp with time zone").IsRequired();
             builder.Property(s => s.CreatedBy).HasColumnName("created_by");
+
+            // 検索用インデックス
+            builder.HasIndex(s => new { s.ProductId, s.OccurredAt });
+            builder.HasIndex(s => new { s.LocationId, s.OccurredAt });
+            builder.HasIndex(s => s.TransferNo);
 
             // Productとのリレーション
             builder.HasOne(s => s.Product)
