@@ -82,6 +82,7 @@ AideaInventoryMng
 | 08_verification-report.md | 動作検証報告書 | 作成予定 |
 | 09_issues-and-solutions.md | 問題点・解決方法の一覧 | 作成予定 |
 | 10_final-report.md | 最終学習報告書 | 作成予定 |
+| 11_screen-design.md | 画面一覧・画面遷移・画面項目設計 | 初版 |
 
 
 
@@ -171,5 +172,11 @@ Postgresでの楽観ロック・悲観ロック・排他制御を確認
 在庫の棚卸のためのStocktakesController の更新用のPOST、キャンセル用のPOST作成
 要件定義の制限を組み込む（データ存在確認、実施中のみ対応、Locationのロック制御、実棚数量VS引き当て数量の確認、実棚の計算式実行、ステータスを完了に変更もしくは引き戻し）
 上記の内容をSwaggerにて確認テスト実行
+
+11/17(火)
+画面の要件定義決定（Blazor、ASP.NET Core Web API、C#、EF Core、PostgreSQL ）
+画面操作で必要なCommon型作成　(From、 To、 Page、PageSize)
+在庫移動履歴のためのControllerの作成
+在庫移動履歴のためのDTO２つ作成
 
 以上

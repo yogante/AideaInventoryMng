@@ -1,3 +1,430 @@
+# API設計書
+
+| 項目 | 内容 |
+|---|---|
+| システム名 | AideaInventoryMng |
+| 版 | 改訂版(ドラフト) |
+| 作成日 | 2026-11-04 |
+| 最終更新日 | 2026-11-18 |
+| 関連資料 | [01_system-overview.md](01_system-overview.md)(システム概要・構成設計書)、[02_database-design.md](02_database-design.md)(データベース設計書) |
+
+※ 「(案)」と書かれた項目は、実装時に確認して確定する。
+
+---
+
+## 1. 概要
+
+### 1.1 目的
+
+AideaInventoryMngが提供するWeb APIの仕様を記載する。
+
+### 1.2 位置づけ
+
+- 本書は、共通仕様とAPI一覧、各APIの入力項目・業務ルール・エラーをまとめた初版である
+- 実装に合わせて、Day 4〜14で各APIの詳細を追記し、Day 14に完成させる
+- リクエスト・レスポンスの細かい型情報は、OpenAPI(実装から自動出力)を正とし、本書にはその要点を記載する
+
+### 1.3 対象
+
+第3章のAPI一覧に記載したAPI。認証・権限は対象外とする。
+
+---
+
+## 2. 共通仕様
+
+### 2.1 基本
+
+| 項目 | 内容 |
+|---|---|
+| 方式 | REST(HTTP + JSON) |
+| ベースパス | `/api`(バージョニングは行わない。必要になった時点で `/api/v2` を追加する) |
+| 文字コード | UTF-8 |
+| パスの命名 | 小文字のkebab-case、複数形(例: `stock-movements`) |
+| JSONのプロパティ名 | camelCase(例: `productCode`) |
+| 認証 | なし(対象外。必要になった場合に追加する) |
+
+### 2.2 値の形式
+
+| 種類 | 形式 | 例 |
+|---|---|---|
+| 日時 | ISO 8601(UTC、`Z` 付き) | `2026-11-12T09:30:00Z` |
+| 日付 | `yyyy-MM-dd` | `2026-11-20` |
+| 数量 | 整数 | `10` |
+| ID | 整数 | `1` |
+| 区分値 | 英語の文字列(02_database-design.md の8章) | `RECEIPT` |
+
+### 2.3 HTTPステータス
+
+| ステータス | 意味 | 使う場面 |
+|---|---|---|
+| 200 OK | 成功 | 取得、更新、引当、確定など |
+| 201 Created | 作成成功 | 登録(`Location` ヘッダに作成した資源のURLを返す) |
+| 204 No Content | 成功(本文なし) | 削除 |
+| 400 Bad Request | 入力エラー | 必須項目の欠落、形式・範囲の誤り |
+| 404 Not Found | 対象が存在しない | 存在しないID、削除済みの資源 |
+| 409 Conflict | 業務ルール違反・競合 | コード重複、バージョン不一致、在庫不足、棚卸中、削除不可など |
+| 500 Internal Server Error | サーバー内部エラー | 想定外のエラー |
+
+### 2.4 エラー応答
+
+ASP.NET Coreの標準形式(ProblemDetails)に、業務エラーコード `code` を加えた形式とする(案)。
+
+業務ルール違反の例(409)
+
+```json
+{
+  "code": "INSUFFICIENT_STOCK",
+  "message": "在庫が不足しています。"
+}
+```
+
+入力エラーの例(400)
+
+```json
+{
+  "title": "入力内容に誤りがあります。",
+  "status": 400,
+  "code": "VALIDATION_ERROR",
+  "errors": {
+    "quantity": ["1以上を指定してください。"]
+  }
+}
+```
+
+### 2.5 業務エラーコード(案)
+
+| コード | ステータス | 意味 |
+|---|---|---|
+| VALIDATION_ERROR | 400 | 入力値の誤り |
+| INVALID_ACTUAL_QUANTITY | 400 | 実棚数量が不正(負数など) |
+| NOT_FOUND | 404 | 対象が存在しない(削除済みを含む) |
+| DUPLICATE_CODE | 409 | コードの重複(削除済みのコードも含む) |
+| VERSION_CONFLICT | 409 | バージョン不一致(他の更新と競合) |
+| INSUFFICIENT_STOCK | 409 | 在庫(引当可能数)が不足 |
+| INSUFFICIENT_RESERVATION | 409 | 解除する数量が引当数量を超えている |
+| HAS_STOCK | 409 | 在庫が残っているため削除できない |
+| STOCKTAKE_IN_PROGRESS | 409 | 棚卸が実施中の倉庫のため、入庫・出庫・引当・引当解除・移動ができない(または同じ倉庫で棚卸を作成・開始できない) |
+| INVALID_STOCKTAKE_STATUS | 409 | 棚卸の状態が操作に合っていない(DRAFT以外の開始、IN_PROGRESS以外の明細追加・実棚数量の入力・確定・中止) |
+| DUPLICATE_STOCKTAKE_LINE | 409 | 同じ商品・同じロケーションの棚卸明細が既に存在する |
+| STOCK_ALREADY_EXISTS | 409 | 対象の商品・ロケーションの在庫が既に存在する(明細の追加、または新規在庫としての確定ができない) |
+| STOCKTAKE_QUANTITY_CONFLICT | 409 | 棚卸の確定時、現在の在庫数量が帳簿数量と一致しない |
+| RESERVED_QUANTITY_CONFLICT | 409 | 棚卸の確定時、実棚数量が現在の引当数量を下回る |
+| INVALID_STATE | 409 | 上記以外の状態不正(実棚数量が未入力の明細があるまま確定しようとした場合など) |
+| ACTUAL_QUANTITY_NOT_ENTERED	| 409	| 実棚数量が未入力の明細が存在する |
+
+### 2.6 ページング
+
+一覧・検索APIに共通で、次のクエリパラメータを使う。
+
+| パラメータ | 内容 | 既定値 |
+|---|---|---|
+| page | ページ番号(1始まり) | 1 |
+| pageSize | 1ページの件数(最大100) | 20 |
+
+応答は次の形式とする。
+
+```json
+{
+  "items": [ ],
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 53
+}
+```
+
+### 2.7 排他制御
+
+- 更新系のAPI(マスタの `PUT` と、棚卸の確定・中止)は、リクエストに `version` を必須とする
+- `version` が現在の値と異なる場合は、409(`VERSION_CONFLICT`)を返す
+- 更新に成功した応答には、更新後の `version` を含める
+- 棚卸の開始(`/start`)は `version` を使わず、状態の確認と行ロックで二重実行を防ぐ
+- 棚卸明細の実棚数量の更新(`PUT /api/stocktakes/{id}/lines/{lineId}`)は `version` を使わず、棚卸ヘッダーの行ロックで排他制御する
+
+### 2.8 削除
+
+- `DELETE` は論理削除とする(マスタのみ)
+- 削除済みの資源は、一覧・取得の対象外とする(取得は404)
+- 在庫が残っているものは削除できない(409、`HAS_STOCK`)
+
+---
+
+## 3. API一覧
+
+| No | 機能 | メソッド | パス | 概要 | 成功時 | 実装予定 |
+|---|---|---|---|---|---|---|
+| 1 | 商品 | GET | /api/products | 商品の一覧・検索 | 200 | Day 4 |
+| 2 |  | GET | /api/products/{id} | 商品の取得 | 200 | Day 4 |
+| 3 |  | POST | /api/products | 商品の登録 | 201 | Day 4 |
+| 4 |  | PUT | /api/products/{id} | 商品の更新 | 200 | Day 4 |
+| 5 |  | DELETE | /api/products/{id} | 商品の削除(論理削除) | 204 | Day 4 |
+| 6 | 倉庫 | GET | /api/warehouses | 倉庫の一覧・検索 | 200 | Day 5 |
+| 7 |  | GET | /api/warehouses/{id} | 倉庫の取得 | 200 | Day 5 |
+| 8 |  | POST | /api/warehouses | 倉庫の登録 | 201 | Day 5 |
+| 9 |  | PUT | /api/warehouses/{id} | 倉庫の更新 | 200 | Day 5 |
+| 10 |  | DELETE | /api/warehouses/{id} | 倉庫の削除(論理削除) | 204 | Day 5 |
+| 11 | ロケーション | GET | /api/locations | ロケーションの一覧・検索 | 200 | Day 5 |
+| 12 |  | GET | /api/locations/{id} | ロケーションの取得 | 200 | Day 5 |
+| 13 |  | POST | /api/locations | ロケーションの登録 | 201 | Day 5 |
+| 14 |  | PUT | /api/locations/{id} | ロケーションの更新 | 200 | Day 5 |
+| 15 |  | DELETE | /api/locations/{id} | ロケーションの削除(論理削除) | 204 | Day 5 |
+| 16 | 入庫 | POST | /api/receipts | 入庫の登録 | 201 | Day 8 |
+| 17 | 出庫 | POST | /api/issues | 出庫の登録 | 201 | Day 9 |
+| 18 | 引当 | POST | /api/stocks/reserve | 在庫の引当 | 200 | Day 9 |
+| 19 |  | POST | /api/stocks/release | 引当の解除 | 200 | Day 9 |
+| 20 | 在庫照会 | GET | /api/stocks | 在庫の検索 | 200 | Day 11 |
+| 21 |  | GET | /api/stocks/summary | 在庫の集計 | 200 | Day 11 |
+| 22 | 在庫移動 | POST | /api/transfers | 在庫の移動 | 201 | Day 12 |
+| 23 | 棚卸 | POST | /api/stocktakes | 棚卸ヘッダーの作成 | 201 | Day 13 |
+| 24 |  | POST | /api/stocktakes/{id}/start | 棚卸の開始 | 200 | Day 13 |
+| 25 |  | GET | /api/stocktakes | 棚卸の一覧 | 200 | Day 13 |
+| 26 |  | GET | /api/stocktakes/{id} | 棚卸の取得(明細を含む) | 200 | Day 13 |
+| 27 |  | POST | /api/stocktakes/{id}/lines | 棚卸明細の追加 | 201 | Day 13 |
+| 28 |  | PUT | /api/stocktakes/{id}/lines/{lineId} | 実棚数量の入力・更新 | 200 | Day 13 |
+| 29 |  | POST | /api/stocktakes/{id}/complete | 棚卸の確定 | 200 | Day 13 |
+| 30 |  | POST | /api/stocktakes/{id}/cancel | 棚卸の中止 | 200 | Day 13 |
+| 31 | 在庫下限アラート | GET | /api/stock-alerts | 下限を下回る商品の一覧 | 200 | Day 14 |
+| 32 | 在庫変動履歴 | GET | /api/stock-movements | 履歴の検索 | 200 | Day 14 |
+| 33 | 在庫変動履歴	| GET	| /api/stock-movements/{id}	| 履歴の詳細取得 | 200 | 
+| 34 | CSV出力 | GET | /api/stock-movements/export | 履歴のCSV出力 | 200 | Day 15 |
+| 35 |  | GET | /api/stocks/export | 在庫のCSV出力 | 200 | Day 15 |
+| 36 | 運用 | GET | /health | 起動確認(ALBのヘルスチェック用) | 200 | Day 7 |
+
+## 4. API詳細
+
+### 4.1 商品(products)
+
+**レスポンスの項目(Product)**
+
+| 項目 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | |
+| productCode | 文字列 | 商品コード |
+| name | 文字列 | 商品名 |
+| description | 文字列(null可) | 商品説明 |
+| price | 数値 | 価格(小数点以下2桁まで) |
+| unit | 文字列 | 単位 |
+| minStockQuantity | 整数(null可) | 最低在庫数量(在庫下限数量) |
+| version | 整数 | バージョン |
+| createdAt | 日時 | 作成日時 |
+| updatedAt | 日時 | 更新日時 |
+
+**GET /api/products(一覧・検索)**
+
+| クエリ | 内容 |
+|---|---|
+| keyword | 商品コードまたは商品名の部分一致(任意) |
+| page、pageSize | 2.6を参照 |
+
+応答は、Productのページング形式。並び順は商品コード昇順。
+
+**POST /api/products(登録)**
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| productCode | 文字列 | ○ | 50文字以内。削除済みも含めて一意 |
+| name | 文字列 | ○ | 200文字以内 |
+| description | 文字列 | | 500文字以内 |
+| price | 数値 | ○ | 0以上。小数点以下2桁まで(整数部8桁以内) |
+| unit | 文字列 | ○ | 20文字以内 |
+| minStockQuantity | 整数 | | 0以上。省略時は未設定 |
+
+エラー: 400(`VALIDATION_ERROR`)、409(`DUPLICATE_CODE`)
+
+**PUT /api/products/{id}(更新)**
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| name | 文字列 | ○ | 200文字以内 |
+| description | 文字列 | | 500文字以内。nullで未設定に戻す |
+| price | 数値 | ○ | 0以上。小数点以下2桁まで |
+| unit | 文字列 | ○ | 20文字以内 |
+| minStockQuantity | 整数 | | 0以上。nullで未設定に戻す |
+| version | 整数 | ○ | 取得時の値 |
+
+商品コードは登録後に変更できない(案)。
+
+エラー: 400、404、409(`VERSION_CONFLICT`)
+
+**GET /api/products/{id}(取得)**: エラーは404(`NOT_FOUND`)。
+
+**DELETE /api/products/{id}(削除)**: 論理削除。エラーは404、409(`HAS_STOCK`: どこかのロケーションに在庫数量または引当数量が残っている)。
+
+### 4.2 倉庫(warehouses)
+
+**レスポンスの項目(Warehouse)**: id、warehouseCode、name、address(null可)、description(null可)、version、createdAt、updatedAt
+
+| API | 入力 | 主なエラー |
+|---|---|---|
+| GET /api/warehouses | keyword(倉庫コード・倉庫名の部分一致)、page、pageSize | |
+| GET /api/warehouses/{id} | | 404 |
+| POST /api/warehouses | warehouseCode(必須、20文字以内)、name(必須、100文字以内)、address(任意、200文字以内)、description(任意、500文字以内) | 400、409(`DUPLICATE_CODE`) |
+| PUT /api/warehouses/{id} | name(必須)、address(任意)、description(任意)、version(必須)。倉庫コードは変更不可(案) | 400、404、409(`VERSION_CONFLICT`) |
+| DELETE /api/warehouses/{id} | | 404、409(`HAS_STOCK`: 配下のロケーションに在庫が残っている) |
+
+### 4.3 ロケーション(locations)
+
+**レスポンスの項目(Location)**: id、warehouseId、locationCode、locationName、version、createdAt、updatedAt
+
+| API | 入力 | 主なエラー |
+|---|---|---|
+| GET /api/locations | warehouseId(任意)、keyword(ロケーションコード・ロケーション名の部分一致)、page、pageSize | |
+| GET /api/locations/{id} | | 404 |
+| POST /api/locations | warehouseId(必須)、locationCode(必須、30文字以内)、locationName(必須、100文字以内) | 400、404(倉庫が存在しない)、409(`DUPLICATE_CODE`: 同じ倉庫内で重複) |
+| PUT /api/locations/{id} | locationName(必須)、version(必須)。倉庫とロケーションコードは変更不可(案) | 400、404、409(`VERSION_CONFLICT`) |
+| DELETE /api/locations/{id} | | 404、409(`HAS_STOCK`) |
+
+### 4.4 入庫・出庫・引当
+
+どのAPIも、対象の倉庫で棚卸が実施中の場合は409(`STOCKTAKE_IN_PROGRESS`)を返す。商品・ロケーションが存在しない(削除済みを含む)場合は404を返す。
+
+**レスポンスの項目(Stock)**
+
+| 項目 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | |
+| productId、productCode、productName | 整数・文字列 | 商品 |
+| warehouseId、warehouseCode | 整数・文字列 | 倉庫 |
+| locationId、locationCode | 整数・文字列 | ロケーション |
+| quantity | 整数 | 在庫数量 |
+| reservedQuantity | 整数 | 引当数量 |
+| availableQuantity | 整数 | 引当可能数(在庫数量 − 引当数量) |
+| version | 整数 | バージョン |
+
+**POST /api/receipts(入庫)**
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| productId | 整数 | ○ | |
+| locationId | 整数 | ○ | |
+| quantity | 整数 | ○ | 1以上 |
+| occurredAt | 日時 | | 省略時はサーバーの現在日時 |
+| remarks | 文字列 | | 200文字以内 |
+
+処理: 在庫の行がなければ作成し、数量を加算する。在庫変動履歴(RECEIPT)を同一トランザクションで記録する。
+
+応答: `movementId` と、更新後のStock。
+
+**POST /api/issues(出庫)**
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| productId | 整数 | ○ | |
+| locationId | 整数 | ○ | |
+| quantity | 整数 | ○ | 1以上 |
+| useReservation | 真偽値 | | 引当済みの在庫から出庫するか。既定はfalse(案) |
+| occurredAt | 日時 | | 省略時はサーバーの現在日時 |
+| remarks | 文字列 | | 200文字以内 |
+
+処理: `useReservation` がfalseのときは、引当可能数の範囲で出庫する。trueのときは、在庫数量と引当数量を同時に減らす(案)。在庫変動履歴(ISSUE)を同一トランザクションで記録する。
+
+エラー: 400、404、409(`INSUFFICIENT_STOCK`、`STOCKTAKE_IN_PROGRESS`)
+
+応答: `movementId` と、更新後のStock。
+
+**POST /api/stocks/reserve(引当)、POST /api/stocks/release(引当解除)**
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| productId | 整数 | ○ | |
+| locationId | 整数 | ○ | |
+| quantity | 整数 | ○ | 1以上 |
+
+処理: 引当は引当数量を加算し、引当解除は減算する。在庫変動履歴には記録しない。
+
+エラー: 400、404、409(引当は `INSUFFICIENT_STOCK`、解除は `INSUFFICIENT_RESERVATION`、どちらも `STOCKTAKE_IN_PROGRESS`)
+
+応答: 更新後のStock。
+
+### 4.5 在庫照会・在庫下限アラート
+
+**GET /api/stocks(在庫の検索)**
+
+| クエリ | 内容 |
+|---|---|
+| productId、warehouseId、locationId | 絞り込み(任意) |
+| keyword | 商品コードまたは商品名の部分一致(任意) |
+| page、pageSize | 2.6を参照 |
+
+応答は、Stockのページング形式。並び順は商品コード、ロケーションコードの昇順。
+
+**GET /api/stocks/summary(在庫の集計)**
+
+| クエリ | 内容 |
+|---|---|
+| groupBy | `product`(商品別。全倉庫の合計)または `warehouse`(商品 × 倉庫別。ロケーションを合算) |
+| keyword、page、pageSize | |
+
+応答の項目: productId、productCode、productName、unit、(`warehouse` のときは warehouseId、warehouseCode)、totalQuantity、totalReservedQuantity、totalAvailableQuantity
+
+**GET /api/stock-alerts(下限アラート)**
+
+全倉庫の在庫数量の合計が、商品の在庫下限数量を下回る商品を返す(下限が未設定の商品は対象外)。
+
+応答の項目: productId、productCode、productName、totalQuantity、minStockQuantity、shortageQuantity(下限 − 在庫合計)
+
+### 4.6 在庫移動
+
+**POST /api/transfers**
+
+| 項目 | 型 | 必須 | 制約・説明 |
+|---|---|---|---|
+| productId | 整数 | ○ | |
+| fromLocationId | 整数 | ○ | 移動元 |
+| toLocationId | 整数 | ○ | 移動先。移動元と同じ場合は400 |
+| quantity | 整数 | ○ | 1以上 |
+| occurredAt | 日時 | | 省略時はサーバーの現在日時 |
+| remarks | 文字列 | | 200文字以内 |
+
+処理: 移動元の在庫を減らし、移動先の在庫を増やす。在庫変動履歴は「移動出庫」と「移動入庫」の2行を、同じ移動番号で記録する。すべて1つのトランザクションで行う。移動元・移動先のどちらかの倉庫で棚卸が実施中の場合は409(`STOCKTAKE_IN_PROGRESS`)。
+
+エラー: 400、404、409(`INSUFFICIENT_STOCK`、`STOCKTAKE_IN_PROGRESS`)
+
+応答: `transferNo`、移動元のStock、移動先のStock。
+
+### 4.7 在庫変動履歴・CSV出力
+
+**レスポンスの項目(StockMovement)**
+
+GET /api/stock-movements/{id}：指定した在庫変動履歴を1件取得する
+
+対象が存在しない場合は404（NOT_FOUND）
+並び順は発生日時の降順、同一日時の場合はIDの降順とする。
+詳細レスポンスには createdAt も含める
+
+| 項目 | 型 | 説明 |
+|---|---|---|
+| id | 整数 | |
+| productId、productCode、productName | 整数・文字列 | 商品 |
+| warehouseId、warehouseCode | 整数・文字列 | 倉庫 |
+| locationId、locationCode | 整数・文字列 | ロケーション |
+| movementType | 文字列 | 入出庫区分 |
+| quantityChange | 整数 | 増減数量(符号付き) |
+| transferNo | 整数(null可) | 移動番号 |
+| occurredAt | 日時 | 発生日時 |
+| remarks | 文字列(null可) | 備考 |
+
+**GET /api/stock-movements(履歴の検索)**
+
+| クエリ | 内容 |
+|---|---|
+| productId、warehouseId、locationId | 絞り込み(任意) |
+| movementType | 入出庫区分(任意) |
+| From、To | 発生日時の範囲(任意) |
+| transferNo | 移動番号(任意) |
+| page、pageSize | 2.6を参照 |
+
+並び順は発生日時の降順。
+
+**GET /api/stock-movements/export、GET /api/stocks/export(CSV出力)**
+
+検索APIと同じ絞り込み条件(ページングは除く)で、全件をCSVで返す。
+
+| 項目 | 内容(案) |
+|---|---|
+| Content-Type | `text/csv` |
+| 文字コード | UTF-8(BOM付き。Excelで開きやすくするため) |
+| ヘッダ行 | あり |
+| 列 | 各レスポンスの項目に対応する |
 
 ### 4.8 棚卸(stocktakes)
 
@@ -67,7 +494,7 @@
 - 棚卸開始時点の在庫IDを `stockId` に保存する
 - 棚卸開始時点の在庫数量を `bookQuantity` に保存する
 - `actualQuantity` と `differenceQuantity` はnullで初期化する
-- 対象倉庫の棚卸状態を `IN_PROGRESS` に変更する
+- 棚卸の状態を `IN_PROGRESS` に変更する
 - 入庫・出庫・引当・引当解除・在庫移動など、対象倉庫の在庫数量に影響する処理を制限する
 - 明細作成と状態変更は同一トランザクションで行う
 
@@ -211,7 +638,7 @@
 
 在庫調整履歴:
 
-- 差異数量が0以外の場合、入出庫履歴に `STOCKTAKE_ADJUST` を登録する
+- 差異数量が0以外の場合、在庫変動履歴に `STOCKTAKE_ADJUST` を登録する
 - 履歴の増減数量(`quantityChange`)には差異数量を設定する
 - 差異数量が0の場合は在庫調整履歴を登録しない
 - 新規在庫の場合も、実棚数量が1以上であれば帳簿数量0からの増加として履歴を登録する
@@ -235,7 +662,7 @@
 - 409(`STOCKTAKE_QUANTITY_CONFLICT`: 帳簿数量と現在の在庫数量が不一致)
 - 409(`RESERVED_QUANTITY_CONFLICT`: 実棚数量が引当数量を下回る)
 - 409(`STOCK_ALREADY_EXISTS`: 新規在庫として追加する商品・ロケーションに在庫が既に存在する)
-- 409(`INVALID_STATE`: 実棚数量が未入力の明細が存在する)
+- 409(`ACTUAL_QUANTITY_NOT_ENTERED`: 実棚数量が未入力の明細が存在する)
 
 応答:
 
@@ -272,119 +699,30 @@
 - 中止後の棚卸ヘッダーを返す
 - HTTPステータスは200(OK)
 
+### 4.9 運用
 
-### 4.9 在庫変動履歴（StockMovement）
+**GET /health**
 
-#### 4.9.1 レスポンスの項目（StockMovement）
+アプリが起動していれば200を返す。ALBのヘルスチェックに使う。DB接続の確認を含めるかは実装時に決める。
 
-| 項目 | 型 | 説明 |
+---
+
+## 5. 未決事項・変更履歴
+
+### 5.1 未決事項
+
+| 項目 | 決定予定 | 備考 |
 |---|---|---|
-| id | 整数 | 在庫変動履歴ID |
-| productId | 整数 | 商品ID |
-| productCode | 文字列 | 商品コード |
-| productName | 文字列 | 商品名 |
-| warehouseId | 整数 | 倉庫ID |
-| warehouseCode | 文字列 | 倉庫コード |
-| locationId | 整数 | ロケーションID |
-| locationCode | 文字列 | ロケーションコード |
-| movementType | 文字列 | 在庫変動種別 |
-| quantityChange | 整数 | 在庫増減数量（プラス・マイナス） |
-| transferNo | 整数（null可） | 移動番号 |
-| occurredAt | 日時 | 在庫変動発生日時（UTC） |
-| remarks | 文字列（null可） | 備考 |
-| createdAt | 日時 | 登録日時（UTC） |
+| 出庫と引当の関係(`useReservation` の扱い) | Day 9 | 引当済みの在庫から出庫するときの動作 |
+| 商品コード・倉庫コード・ロケーションコードの変更可否 | Day 4 | 現案は変更不可 |
+| 棚卸明細の `stockId` と商品・ロケーションの整合チェック | Day 13 | 現案はアプリケーションで検証する(02_database-design.md の9章) |
+| CSVの文字コード | Day 15 | 現案はUTF-8(BOM付き) |
+| `/health` にDB接続の確認を含めるか | Day 7 | |
+| 認証・権限 | 必要になった時点 | 現状は対象外 |
 
-#### 4.9.2 在庫変動種別（MovementType）
+### 5.2 変更履歴
 
-| 値 | 説明 |
-|---|---|
-| RECEIPT | 入庫 |
-| ISSUE | 出庫 |
-| TRANSFER_OUT | 在庫移動（移動元） |
-| TRANSFER_IN | 在庫移動（移動先） |
-| STOCKTAKE_ADJUST | 棚卸確定による在庫調整 |
-
-※ 引当・引当解除は在庫変動履歴に記録しない。
-
-※ 棚卸確定時、差異数量が0の場合は履歴を登録しない。
-
-#### 4.9.3 GET /api/stock-movements（在庫変動履歴一覧）
-
-クエリパラメータ：
-
-| 項目 | 型 | 必須 | 制約・説明 |
-|---|---|---|---|
-| productId | 整数 | | 商品IDによる絞り込み |
-| warehouseId | 整数 | | 倉庫IDによる絞り込み |
-| locationId | 整数 | | ロケーションIDによる絞り込み |
-| movementType | 文字列 | | 在庫変動種別による絞り込み |
-| from | 日時 | | 発生日時の開始（UTC） |
-| to | 日時 | | 発生日時の終了（UTC） |
-| page | 整数 | | ページ番号（既定値1） |
-| pageSize | 整数 | | 1ページあたりの件数（既定値20） |
-
-処理：
-
-- 指定された検索条件に応じて在庫変動履歴を検索する。
-- 商品、ロケーション、倉庫の情報を取得する。
-- 削除済みのマスタに関連する履歴も表示対象とする。
-- 発生日時（occurredAt）の降順、履歴ID（id）の降順で並べる。
-- ページングを行う。
-
-応答：
-
-- 在庫変動履歴のページング形式で返す。
-- 各履歴には商品情報、倉庫情報、ロケーション情報を含める。
-- HTTPステータスは200（OK）。
-
-#### 4.9.4 GET /api/stock-movements/{id}（在庫変動履歴詳細）
-
-処理：
-
-- 指定された在庫変動履歴を取得する。
-- 商品、倉庫、ロケーションの情報を含める。
-- 履歴は追加のみとし、更新・削除APIは提供しない。
-
-エラー：
-
-- 404（NOT_FOUND：指定された履歴が存在しない）
-
-応答：
-
-- 在庫変動履歴の詳細を返す。
-- HTTPステータスは200（OK）。
-
-#### 4.9.5 GET /api/stock-movements/export（在庫変動履歴CSV出力）
-
-クエリパラメータ：
-
-- GET /api/stock-movements と同じ検索条件を使用する。
-- page、pageSizeは指定しない。
-
-処理：
-
-- GET /api/stock-movements と同じ絞り込み条件・並び順で全件を取得する。
-- CSV形式で出力する。
-- 文字コードはUTF-8（BOM付き）とする。
-- ヘッダー行を付ける。
-- 件数が多い場合に備えてストリーミングで返す。
-
-CSV出力項目：
-
-| 項目 | 説明 |
-|---|---|
-| id | 履歴ID |
-| occurredAt | 発生日時 |
-| movementType | 在庫変動種別 |
-| productCode | 商品コード |
-| productName | 商品名 |
-| warehouseCode | 倉庫コード |
-| locationCode | ロケーションコード |
-| quantityChange | 在庫増減数量 |
-| transferNo | 移動番号 |
-| remarks | 備考 |
-
-応答：
-
-- Content-Typeはtext/csvとする。
-- ファイル名はstock-movements.csvとする。
+| 版 | 日付 | 内容 |
+|---|---|---|
+| 初版 | 2026-11-04 | 新規作成(共通仕様、API一覧、各APIの要点) |
+| 改訂 | 2026-11-18 | 棚卸のAPIを、ヘッダー作成・開始・明細追加・実棚数量の入力・確定・中止に分割(4.8を差し替え)。API一覧と業務エラーコードに反映。商品(説明・価格)、倉庫(住所・備考)、ロケーション(`locationName`)の項目をDB設計書に合わせて更新。未決事項のうち、棚卸に関する解決済みの項目を削除 |
