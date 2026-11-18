@@ -143,5 +143,45 @@ namespace AideaInventoryMng.Controllers
 
         }
 
+        [HttpGet("{id:long}")]
+        public async Task<ActionResult<StockMovementDetailResponse>> GetStockMovementDetailById(long id)
+        {
+
+            var item = await _context.StockMovements
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.Id == id)
+                .Select(p => new StockMovementDetailResponse
+                {
+                    Id = p.Id,
+                    ProductId = p.ProductId,
+                    ProductCode = p.Product.ProductCode,
+                    ProductName = p.Product.Name,
+                    WarehouseId = p.Location.WarehouseId,
+                    WarehouseCode = p.Location.Warehouse.Code,
+                    LocationId = p.LocationId,
+                    LocationCode = p.Location.LocationCode,
+                    MovementType = p.MovementType,
+                    QuantityChange = p.QuantityChange,
+                    TransferNo = p.TransferNo,
+                    OccurredAt = p.OccurredAt,
+                    Remarks = p.Remarks,
+                    CreatedAt = p.CreatedAt
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+            {
+                return NotFound(new
+                {
+                    code = "NOT_FOUND",
+                    message = "指定された在庫変動履歴が見つかりません。"
+                });
+            }
+
+            return Ok(item);
+
+        }
+
     }
 }
