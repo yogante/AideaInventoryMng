@@ -1,0 +1,103 @@
+
+/* 画面全体 */
+.page {
+    display: flex;
+    min-height: 100vh;
+    background-color: #f5f7fb;
+}
+
+/* 左側サイドメニュー */
+.sidebar {
+    flex: 0 0 250px;
+    width: 250px;
+    min-height: 100vh;
+    background-color: #172b4d;
+}
+
+/* メイン領域 */
+.main-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 上部ヘッダー */
+.top-row {
+    height: 56px;
+    min-height: 56px;
+    padding: 0 28px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.header-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #24344d;
+}
+
+.header-info {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* コンテンツ表示領域 */
+.content-area {
+    flex: 1;
+    padding: 28px;
+    min-width: 0;
+}
+
+.content {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* エラー表示 */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 12px 20px;
+    background-color: lightyellow;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 12px;
+        top: 8px;
+    }
+
+/* スマートフォン対応 */
+@media (max-width: 640px) {
+    .page {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        min-height: auto;
+        flex: none;
+    }
+
+    .top-row {
+        padding: 0 16px;
+    }
+
+    .content-area {
+        padding: 16px;
+    }
+}

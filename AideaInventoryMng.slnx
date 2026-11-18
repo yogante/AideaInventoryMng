@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="AideaInventoryMng.Web/AideaInventoryMng.Web.csproj" Id="b63e4043-7eda-4f3b-8095-6133b11e96aa" />
   <Project Path="AideaInventoryMng/AideaInventoryMng.csproj" />
 </Solution>

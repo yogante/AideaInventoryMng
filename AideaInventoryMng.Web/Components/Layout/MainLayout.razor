@@ -1,0 +1,41 @@
+﻿
+@inherits LayoutComponentBase
+
+<div class="page">
+
+    @* 左側サイドメニュー *@
+    <aside class="sidebar">
+        <NavMenu />
+    </aside>
+
+    @* メイン画面 *@
+    <div class="main-area">
+
+        @* 上部ヘッダー *@
+        <header class="top-row">
+            <div class="header-title">
+                在庫管理システム
+            </div>
+
+            <div class="header-info">
+                AideaInventoryMng
+            </div>
+        </header>
+
+        @* 各画面の表示領域 *@
+        <main class="content-area">
+            <article class="content">
+                @Body
+            </article>
+        </main>
+
+    </div>
+
+</div>
+
+@* エラー表示 *@
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
