@@ -4,8 +4,13 @@ namespace AideaInventoryMng.DTO.Products
 {
     public class UpdateProductRequest
     {
+        // 商品コード
         [Required]
-        [MaxLength(100)]
+        [MaxLength(50)]
+        public string ProductCode { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(200)]
         public string Name { get; set; } = string.Empty;
 
         // 商品説明
@@ -16,8 +21,13 @@ namespace AideaInventoryMng.DTO.Products
         [Range(typeof(decimal), "0", "99999999.99")]
         public decimal Price { get; set; }
 
-        // 在庫数
+        // 単位
+        [Required]
+        [MaxLength(20)]
+        public string Unit { get; set; } = string.Empty;
+
+        // 最低在庫数
         [Range(0, int.MaxValue)]
-        public int StockQty { get; set; }
+        public int? MinStockQuantity { get; set; }
     }
 }

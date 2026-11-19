@@ -1,0 +1,130 @@
+﻿.product-page {
+    padding: 24px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* ヘッダー */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+.page-title {
+    flex: 1;
+}
+
+.page-header h2 {
+    margin: 0 0 8px;
+    font-size: 24px;
+}
+
+.page-header p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* 商品登録ボタン */
+.btn-primary {
+    margin-left: auto;
+    flex-shrink: 0;
+    background-color: #2563eb;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* 検索エリア */
+.search-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+    .search-area input {
+        flex: 1;
+        width: 100%;
+        max-width: 500px;
+        min-width: 0;
+        padding: 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-sizing: border-box;
+    }
+
+.btn-search {
+    flex-shrink: 0;
+    padding: 10px 20px;
+    background-color: #374151;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* テーブル */
+.product-table-container {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.product-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+    .product-table th,
+    .product-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 14px;
+    }
+
+    .product-table th {
+        background-color: #f9fafb;
+        color: #374151;
+        font-weight: 600;
+        text-align: left;
+    }
+
+    .product-table tbody tr:hover {
+        background-color: #f3f4f6;
+    }
+
+    .product-table th:last-child,
+    .product-table td:last-child {
+        text-align: center;
+    }
+
+.empty-message {
+    text-align: center !important;
+    color: #9ca3af;
+    padding: 40px !important;
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        align-items: flex-start;
+        gap: 16px;
+        flex-direction: column;
+    }
+
+    .search-area input {
+        max-width: none;
+    }
+
+    .product-table {
+        min-width: 700px;
+    }
+}

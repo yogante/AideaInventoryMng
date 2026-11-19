@@ -23,9 +23,13 @@ namespace AideaInventoryMng.Controllers
             var products = await _context.Products.Select(
                 p => new ProductResponse
                 {
+                    Id = p.Id,
+                    ProductCode = p.ProductCode,
                     Name = p.Name,
                     Description = p.Description,
                     Price = p.Price,
+                    Unit = p.Unit,
+                    MinStockQuantity = p.MinStockQuantity,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 }
@@ -39,13 +43,18 @@ namespace AideaInventoryMng.Controllers
         [HttpPost]
         public async Task<ActionResult<ProductResponse>> CreateProduct(CreateProductRequest request)
         {
+            var now = DateTime.UtcNow;
+
             var product = new Product
             {
+                ProductCode = request.ProductCode,
                 Name = request.Name,
                 Description = request.Description,
                 Price = request.Price,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
+                Unit = request.Unit,
+                MinStockQuantity = request.MinStockQuantity,
+                CreatedAt = now,
+                UpdatedAt = now
             };
 
            // 商品を登録対象に追加
@@ -57,9 +66,13 @@ namespace AideaInventoryMng.Controllers
             // EntityからResponse DTOに変換
             var response = new ProductResponse
             {
+                Id = product.Id,
+                ProductCode = product.ProductCode,
                 Name = product.Name,
                 Description = product.Description,
                 Price = product.Price,
+                Unit = product.Unit,
+                MinStockQuantity = product.MinStockQuantity,
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };
@@ -81,9 +94,13 @@ namespace AideaInventoryMng.Controllers
                 .Where(p => p.Id == id)
                 .Select(p => new ProductResponse
                 {
+                    Id = p.Id,
+                    ProductCode = p.ProductCode,
                     Name = p.Name,
                     Description = p.Description,
                     Price = p.Price,
+                    Unit = p.Unit,
+                    MinStockQuantity = p.MinStockQuantity,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 }
@@ -100,7 +117,7 @@ namespace AideaInventoryMng.Controllers
             return Ok(product);
         }
 
-        // 
+        // 商品更新
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateProduct(int id, UpdateProductRequest request)
         {
@@ -113,29 +130,42 @@ namespace AideaInventoryMng.Controllers
                 return NotFound();
             }
 
-
-            //DTOからEntityへ値を反映
+            // DTOからEntityへ値を反映
+            existingProduct.ProductCode = request.ProductCode;
             existingProduct.Name = request.Name;
             existingProduct.Description = request.Description;
             existingProduct.Price = request.Price;
+            existingProduct.Unit = request.Unit;
+            existingProduct.MinStockQuantity = request.MinStockQuantity;
 
             //更新日時を設定
             existingProduct.UpdatedAt = DateTime.UtcNow;
+            existingProduct.Version++;
 
-            //データベースに保存
-            await _context.SaveChangesAsync();
+            try
+            {
+                //データベースに保存
+                await _context.SaveChangesAsync();
+
+            }
+            catch(DbUpdateConcurrencyException)
+            {
+                return Conflict();
+            }
 
             //更新成功(HTTP 204)
             return NoContent();
 
         }
 
-        // 商品詳細取得
+        // 商品削除（論理削除）
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
             // IDを指定して商品を検索
-            var product = await _context.Products.FindAsync(id);
+            var product = await _context.Products
+                .Where(p => p.Id == id && p.DeletedAt == null)
+                .FirstOrDefaultAsync();
 
             // 商品が存在しない場合は404を返す
             if (product == null)
@@ -143,11 +173,23 @@ namespace AideaInventoryMng.Controllers
                 return NotFound();
             }
 
-            // 削除対象に設定
-            _context.Products.Remove(product);
-            
-            // データベースに保存
-            await _context.SaveChangesAsync();
+            // 論理削除日時を設定
+            var now = DateTime.UtcNow;
+
+            product.DeletedAt = now;
+            product.UpdatedAt = now;
+            product.Version++;
+
+            try
+            {
+                // データベースに保存
+                await _context.SaveChangesAsync();
+
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict();
+            }
 
             // 削除成功(HTTP 204)
             return NoContent();

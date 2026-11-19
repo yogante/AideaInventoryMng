@@ -12,6 +12,12 @@ namespace AideaInventoryMng.Web
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
+            // Web APIとのHTTP通信設定
+            builder.Services.AddScoped(sp => new HttpClient
+            {
+                BaseAddress = new Uri("https://localhost:7139/")
+            });
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
