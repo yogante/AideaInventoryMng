@@ -5,6 +5,7 @@
     background-color: #172b4d;
 }
 
+/* システム名 */
 .navbar-brand {
     font-size: 1.1rem;
     font-weight: 700;
@@ -36,30 +37,26 @@
     background-color: #172b4d;
 }
 
+/* チェックボックスによる開閉 */
 .navbar-toggler:checked ~ .nav-scrollable {
     display: block;
 }
 
-/* メニュー項目 */
-.nav-item {
-    font-size: 0.9rem;
-    padding: 0 12px 4px;
+/* メニューリンク */
+.nav-item ::deep .nav-link {
+    color: #d7dfe9;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    min-height: 2.8rem;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0 12px;
+    text-decoration: none;
 }
 
-    .nav-item ::deep .nav-link {
-        color: #d7dfe9;
-        background: none;
-        border: none;
-        border-radius: 5px;
-        min-height: 2.8rem;
-        display: flex;
-        align-items: center;
-        width: 100%;
-        padding: 0 12px;
-        text-decoration: none;
-    }
-
-    .nav-item ::deep a.active {
+    .nav-item ::deep .nav-link.active {
         background-color: #31547e;
         color: white;
         font-weight: 600;
@@ -69,15 +66,6 @@
         background-color: rgba(255,255,255,0.1);
         color: white;
     }
-
-/* メニュー区分 */
-.nav-section {
-    padding: 18px 24px 8px;
-    color: #9caec3;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 1px;
-}
 
 /* PC表示 */
 @media (min-width: 641px) {

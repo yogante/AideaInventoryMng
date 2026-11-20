@@ -1,39 +1,66 @@
 ﻿@page "/"
 
-<PageTitle>DashBoard</PageTitle>
+<PageTitle>Dashboard</PageTitle>
 
-<div class="dashboard">
-	<div class="page-heading">
-		<h1>ダッシュボード</h1>
-		<p>在庫管理システムの利用状況を確認できます。</p>
-	</div>
+<div class="container-fluid">
 
-	<div class="summary-cards">
-		<div class="summary-card">
-			<div class="summary-label">商品数</div>
-			<div class="summary-value">--</div>
-		</div>
+    <!-- ページ見出し -->
+    <div class="mb-4">
+        <h1 class="h3 mb-2">ダッシュボード</h1>
+        <p class="text-muted mb-0">
+            在庫管理システムの利用状況を確認できます。
+        </p>
+    </div>
 
-		<div class="summary-card">
-			<div class="summary-label">在庫拠点数</div>
-			<div class="summary-value">--</div>
-		</div>
+    <!-- サマリーカード -->
+    <div class="row g-3 mb-4">
 
-		<div class="summary-card">
-			<div class="summary-label">入庫件数</div>
-			<div class="summary-value">--</div>
-		</div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-2">商品数</div>
+                    <div class="fs-2 fw-bold">--</div>
+                </div>
+            </div>
+        </div>
 
-		<div class="summary-card">
-			<div class="summary-label">出庫件数</div>
-			<div class="summary-value">--</div>
-		</div>
-	</div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-2">在庫拠点数</div>
+                    <div class="fs-2 fw-bold">--</div>
+                </div>
+            </div>
+        </div>
 
-	<div class="dashboard-section">
-		<h2>在庫メニュー</h2>
-		<p>左側のメニューから各機能を選択してください。</p>
-	</div>
-	
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-2">入庫件数</div>
+                    <div class="fs-2 fw-bold">--</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted mb-2">出庫件数</div>
+                    <div class="fs-2 fw-bold">--</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 在庫メニュー案内 -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-3">在庫メニュー</h2>
+            <p class="text-muted mb-0">
+                左側のメニューから各機能を選択してください。
+            </p>
+        </div>
+    </div>
 
 </div>

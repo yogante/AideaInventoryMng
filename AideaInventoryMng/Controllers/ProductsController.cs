@@ -119,7 +119,7 @@ namespace AideaInventoryMng.Controllers
 
         // 商品更新
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateProduct(int id, UpdateProductRequest request)
+        public async Task<IActionResult> UpdateProduct(long id, UpdateProductRequest request)
         {
             // IDを指定して既存の商品を検索
             var existingProduct = await _context.Products.FindAsync(id);
@@ -140,6 +140,8 @@ namespace AideaInventoryMng.Controllers
 
             //更新日時を設定
             existingProduct.UpdatedAt = DateTime.UtcNow;
+
+            // Versionを更新
             existingProduct.Version++;
 
             try
