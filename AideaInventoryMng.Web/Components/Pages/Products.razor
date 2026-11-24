@@ -107,7 +107,12 @@
                                     <td class="text-end">
                                         @(product.MinStockQuantity?.ToString() ?? "未定")
                                     </td>
-                                    <td class="text-center">-</td>
+                                    <td class="text-center">
+                                        <button class="btn btn-outline-primary"
+                                        @onclick="()=> OpenEditForm(product)">
+                                       編集
+                                    </button>
+                                    </td>
                                 </tr>
                             }
                         }
@@ -194,6 +199,101 @@
             </div>
         </div>
     }
+    
+    <!-- 商品編集モーダル -->
+    @if (_isEditModalVisible)
+    {
+        <div class="modal fade show d-block"
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true">
+
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">商品編集</h5>
+                    <button type="button"
+                        class="btn-close"
+                    @onclick="CloseEditModal">
+                    </button>
+                </div>
+
+
+                <div class="modal-body">
+
+                    <div class="mb-3">
+                        <label class="form-label">商品コード</label>
+                        <input type="text"
+                            class="form-control"
+                            value="@_editProductCode" 
+                            readonly/>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">商品名</label>
+                        <input type="text"
+                            class="form-control"
+                            maxlength="200"
+                            @bind="@_editProductName"/>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">単価</label>
+                        <input type="number"
+                            class="form-control"
+                            min="0"
+                            step=".01"
+                            @bind="@_editPrice"/>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">単位</label>
+                        <input type="text"
+                            class="form-control"
+                            maxlength="20"
+                            @bind="@_editUnit"/>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">最低在庫数</label>
+                        <input type="number"
+                            class="form-control"
+                            min="0"
+                            step="1"
+                            @bind="@_editMinStockQuantity"/>
+                    </div>
+
+                </div>
+
+                @if (!string.IsNullOrEmpty(_editErrorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @_editErrorMessage
+                    </div>
+                }
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary"
+                            @onclick="CloseEditModal">
+                        キャンセル
+                    </button>
+
+                    <button class="btn-primary" 
+                           @onclick="UpdateProductAsync"
+                           disabled ="@_isUpdating">
+                            @(_isUpdating ? "登録中..." : "登録")
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+        </div>
+        
+    }
+
 
 </div>
 
@@ -260,15 +360,38 @@
 
     // 登録成功モーダルの表示状態
     private bool _isSuccessModalVisible = false;
-    
+
 
     // 商品登録処理の状態
     private bool _isSaving = false;
 
     //商品登録時のエラーメッセージ
     private string? _createErrorMessage;
+
     // 商品登録フォームの表示状態
     private bool _isCreateFormVisible = false;
+
+    // 商品編集フォームの表示状態
+    private bool _isEditModalVisible = false;
+
+    // 編集対象の商品ID
+    private long _editProductId;
+
+    // 編集対象のVersion
+    private int _editVersion;
+
+    // 編集用の商品情報
+    private string _editProductCode = string.Empty;
+    private string _editProductName = string.Empty;
+    private decimal _editPrice;
+    private string _editUnit = string.Empty;
+    private int? _editMinStockQuantity;
+
+    // 商品更新処理の状態
+    private bool _isUpdating = false;
+
+    // 商品更新時のエラーメッセージ
+    private string? _editErrorMessage;
 
     // 画面表示時に商品一覧を取得
     protected override async Task OnInitializedAsync()
@@ -331,6 +454,22 @@
         _createErrorMessage = null;
         _isCreateFormVisible = true;
         _createSuccessMessage = null;
+    }
+
+    // 商品編集フォームを表示する
+    private void OpenEditForm(ProductResponse product)
+    {
+        // 編集対象の商品情報をセット
+        _editProductId = product.Id;
+        _editVersion = product.Version;
+        _editProductCode = product.ProductCode;
+        _editProductName = product.Name;
+        _editPrice = product.Price;
+        _editUnit = product.Unit;
+        _editMinStockQuantity = product.MinStockQuantity;
+
+        // 編集モーダルを表示
+        _isEditModalVisible = true;
     }
 
     // 商品登録フォームをキャンセルする
@@ -411,7 +550,93 @@
             _isSaving = false;
         }
 
-       
+
+    }
+
+    // 商品を更新する
+    private async Task UpdateProductAsync()
+    {
+        _editErrorMessage = null;
+
+        // 更新リクエストを作成
+        var request = new UpdateProductRequest
+        {
+            Name = _editProductName,
+            Description = null,
+            Price = _editPrice,
+            Unit = _editUnit,
+            MinStockQuantity = _editMinStockQuantity,
+            Version = _editVersion
+        };
+
+        try
+        {
+            _isUpdating = true;
+
+            // 商品更新APIを呼び出す
+            var response = await Http.PutAsJsonAsync(
+                $"api/Products/{_editProductId}",
+                request
+            );
+
+            // Version不一致
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _editErrorMessage = 
+                "他のユーザーによって商品情報が更新されています。一覧を再読み込みして、もう一度編集してください。";
+
+                return;
+            }
+
+            // 商品が存在しない
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _editErrorMessage =
+                    "更新対象の商品が見つかりません。";
+
+                return;
+            }
+
+            // その他のエラー
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent =
+                    await response.Content.ReadAsStringAsync();
+
+                _editErrorMessage =
+                    $"商品更新に失敗しました。HTTPステータス：{(int)response.StatusCode} 詳細：{errorContent}";
+
+                return;
+            }
+
+            //編集モーダルを閉じる
+            _isEditModalVisible = false;
+
+            // 商品一覧を再取得
+            await LoadProductAsync();
+
+            // 更新完了メッセージ
+            _createSuccessMessage = "商品を更新しました。";
+
+            // 完了モーダルを表示
+            _isSuccessModalVisible = true;
+
+
+        }
+        catch (HttpRequestException ex)
+        {
+            _editErrorMessage = 
+            $"商品更新APIとの通信に失敗しました。詳細：{ex.Message}";
+
+        }
+        finally
+        {
+            _isUpdating = false;
+            
+        }
+
+
+
     }
 
     // 登録成功モーダルを閉じる
@@ -420,5 +645,10 @@
         _isSuccessModalVisible = false;
     }
 
+    private void CloseEditModal()
+    {
+        _isEditModalVisible= false;
+    }
 
+    
 }
