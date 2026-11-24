@@ -67,6 +67,13 @@ namespace AideaInventoryMng.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("updated_by");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("version");
+
                     b.Property<long>("WarehouseId")
                         .HasColumnType("bigint")
                         .HasColumnName("warehouse_id");
@@ -77,7 +84,10 @@ namespace AideaInventoryMng.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_locations_warehouse_location_code");
 
-                    b.ToTable("locations", (string)null);
+                    b.ToTable("locations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_locations_version", "version >= 1");
+                        });
                 });
 
             modelBuilder.Entity("AideaInventoryMng.Models.Product", b =>
@@ -298,9 +308,11 @@ namespace AideaInventoryMng.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LocationId");
+                    b.HasIndex("TransferNo");
 
-                    b.HasIndex("ProductId");
+                    b.HasIndex("LocationId", "OccurredAt");
+
+                    b.HasIndex("ProductId", "OccurredAt");
 
                     b.ToTable("stock_movements", null, t =>
                         {
@@ -495,13 +507,23 @@ namespace AideaInventoryMng.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("updated_by");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("version");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
                         .IsUnique()
                         .HasDatabaseName("uq_warehouses_warehouse_code");
 
-                    b.ToTable("warehouses", (string)null);
+                    b.ToTable("warehouses", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouses_version", "version >= 1");
+                        });
                 });
 
             modelBuilder.Entity("AideaInventoryMng.Models.Location", b =>

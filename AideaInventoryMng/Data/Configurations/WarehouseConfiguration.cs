@@ -8,7 +8,13 @@ namespace AideaInventoryMng.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Warehouse> builder)
         {
-            builder.ToTable("warehouses");
+            builder.ToTable("warehouses", table =>
+            {
+                table.HasCheckConstraint(
+                    "ck_warehouses_version",
+                    "version >= 1"
+                );
+            });
 
             // カラム名
             builder.Property(w => w.Id).HasColumnName("id");
@@ -23,7 +29,11 @@ namespace AideaInventoryMng.Data.Configurations
             builder.Property(w => w.CreatedBy).HasColumnName("created_by");
             builder.Property(w => w.UpdatedBy).HasColumnName("updated_by");
             builder.Property(w => w.DeletedAt).HasColumnName("deleted_at");
-
+            builder.Property(w => w.Version)
+            .HasColumnName("version")
+            .HasDefaultValue(1)
+            .IsConcurrencyToken();
+            
             // 倉庫コードの一意制約
             builder.HasIndex(w => w.Code)
                 .IsUnique()

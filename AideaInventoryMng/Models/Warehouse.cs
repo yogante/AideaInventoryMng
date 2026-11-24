@@ -37,5 +37,7 @@ namespace AideaInventoryMng.Models
         public DateTime? DeletedAt { get; set; }
 
 
+        // 楽観的同時実行制御
+        public int Version { get; set; } = 1;
     }
 }

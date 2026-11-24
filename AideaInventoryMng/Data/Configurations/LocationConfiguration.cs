@@ -8,7 +8,13 @@ namespace AideaInventoryMng.Data.Configurations
     {
         public void Configure(EntityTypeBuilder<Location> builder)
         {
-            builder.ToTable("locations");
+            builder.ToTable("locations", table =>
+            {
+                table.HasCheckConstraint(
+                    "ck_locations_version",
+                    "version >= 1"
+                );
+            });
 
             // カラム名
             builder.Property(l => l.Id).HasColumnName("id");
@@ -22,6 +28,10 @@ namespace AideaInventoryMng.Data.Configurations
             builder.Property(l => l.CreatedBy).HasColumnName("created_by");
             builder.Property(l => l.UpdatedBy).HasColumnName("updated_by");
             builder.Property(l => l.DeletedAt).HasColumnName("deleted_at");
+            builder.Property(l => l.Version)
+            .HasColumnName("version")
+            .HasDefaultValue(1)
+            .IsConcurrencyToken();
 
             // 倉庫内のロケーションコードを一意にする
             builder.HasIndex(l => new { l.WarehouseId, l.LocationCode })

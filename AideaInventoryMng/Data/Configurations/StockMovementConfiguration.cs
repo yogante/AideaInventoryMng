@@ -60,11 +60,11 @@ namespace AideaInventoryMng.Data.Configurations
             builder.Property(s => s.TransferNo).HasColumnName("transfer_no");
             // 発生日時
             builder.Property(s => s.OccurredAt).HasColumnName("occurred_at")
-                .HasColumnType("timestamp with time zone").IsRequired();
+                .HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
             builder.Property(s => s.Remarks).HasColumnName("remarks").HasMaxLength(200);
             // 登録日時
             builder.Property(s => s.CreatedAt).HasColumnName("created_at")
-                .HasColumnType("timestamp with time zone").IsRequired();
+                .HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP").IsRequired();
             builder.Property(s => s.CreatedBy).HasColumnName("created_by");
 
             // 検索用インデックス

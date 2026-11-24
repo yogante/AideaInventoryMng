@@ -25,6 +25,9 @@ namespace AideaInventoryMng.DTO.Products
         // 最低在庫数
         public int? MinStockQuantity { get; set; }
 
+        // Version
+        public int Version { get; set; }
+
         // 登録日時
         public DateTime CreatedAt { get; set; }
 

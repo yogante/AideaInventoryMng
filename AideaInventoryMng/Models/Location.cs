@@ -35,5 +35,8 @@ namespace AideaInventoryMng.Models
         
         // 論理削除日時
         public DateTime? DeletedAt { get; set; }
+
+        // 楽観的同時実行制御
+        public int Version { get; set; } = 1;
     }
 }

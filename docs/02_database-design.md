@@ -314,8 +314,8 @@ ER図はA5:SQL Mk-2で作成し、以下のファイルとして管理する。
 | No | カラム名 | 論理名 | データ型 | NULL | キー | デフォルト | 説明 |
 |---|---|---|---|---|---|---|---|
 | 1 | id | ロケーションID | bigint | NOT NULL | PK | IDENTITY | 内部管理用ID |
-| 2 | warehouse_id | 倉庫ID | bigint | NOT NULL | FK | - | 所属する倉庫 |
-| 3 | location_code | ロケーションコード | varchar(30) | NOT NULL | UK | - | 倉庫内の識別コード |
+| 2 | warehouse_id | 倉庫ID | bigint | NOT NULL | - | - | 所属する倉庫 |
+| 3 | location_code | ロケーションコード | varchar(30) | NOT NULL | 複合UK | - | 倉庫内の識別コード |
 | 4 | location_name | ロケーション名 | varchar(100) | NOT NULL | - | - | 保管場所名称 |
 | 5 | version | バージョン | integer | NOT NULL | - | 1 | 楽観的排他制御 |
 | 6 | created_at | 作成日時 | timestamptz | NOT NULL | - | CURRENT_TIMESTAMP | 作成日時 |

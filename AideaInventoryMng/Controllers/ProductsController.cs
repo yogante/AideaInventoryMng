@@ -30,6 +30,7 @@ namespace AideaInventoryMng.Controllers
                     Price = p.Price,
                     Unit = p.Unit,
                     MinStockQuantity = p.MinStockQuantity,
+                    Version = p.Version,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 }
@@ -57,7 +58,7 @@ namespace AideaInventoryMng.Controllers
                 UpdatedAt = now
             };
 
-           // 商品を登録対象に追加
+            // 商品を登録対象に追加
             _context.Products.Add(product);
 
             // データベースに保存
@@ -73,6 +74,7 @@ namespace AideaInventoryMng.Controllers
                 Price = product.Price,
                 Unit = product.Unit,
                 MinStockQuantity = product.MinStockQuantity,
+                Version = product.Version,
                 CreatedAt = product.CreatedAt,
                 UpdatedAt = product.UpdatedAt
             };
@@ -87,7 +89,7 @@ namespace AideaInventoryMng.Controllers
 
         // 商品詳細取得
         [HttpGet("{id}")]
-        public async Task<ActionResult<ProductResponse>> GetProduct(int id)
+        public async Task<ActionResult<ProductResponse>> GetProduct(long id)
         {
             // IDを指定して商品を検索
             var product = await _context.Products
@@ -101,12 +103,13 @@ namespace AideaInventoryMng.Controllers
                     Price = p.Price,
                     Unit = p.Unit,
                     MinStockQuantity = p.MinStockQuantity,
+                    Version = p.Version,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
                 }
                 ).FirstOrDefaultAsync();
-                
-                
+
+
             // 商品が存在しない場合は404を返す
             if (product == null)
             {
@@ -125,13 +128,17 @@ namespace AideaInventoryMng.Controllers
             var existingProduct = await _context.Products.FindAsync(id);
 
             //商品が存在しない場合は404を返す
-            if (existingProduct== null)
+            if (existingProduct == null)
             {
                 return NotFound();
             }
+            // リクエストのVersionとDBのVersionを比較
+            if (existingProduct.Version != request.Version)
+            {
+                return VersionConflict();
+            }
 
             // DTOからEntityへ値を反映
-            existingProduct.ProductCode = request.ProductCode;
             existingProduct.Name = request.Name;
             existingProduct.Description = request.Description;
             existingProduct.Price = request.Price;
@@ -150,9 +157,10 @@ namespace AideaInventoryMng.Controllers
                 await _context.SaveChangesAsync();
 
             }
-            catch(DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException)
             {
-                return Conflict();
+                // 読み込み後に別の更新が行われた場合
+                return VersionConflict();
             }
 
             //更新成功(HTTP 204)
@@ -162,7 +170,7 @@ namespace AideaInventoryMng.Controllers
 
         // 商品削除（論理削除）
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteProduct(int id)
+        public async Task<IActionResult> DeleteProduct(long id)
         {
             // IDを指定して商品を検索
             var product = await _context.Products
@@ -190,7 +198,7 @@ namespace AideaInventoryMng.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                return Conflict();
+                return VersionConflict();
             }
 
             // 削除成功(HTTP 204)
@@ -199,5 +207,19 @@ namespace AideaInventoryMng.Controllers
         }
 
 
+        private IActionResult VersionConflict()
+        {
+            var problem = new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "データの更新に失敗しました。",
+                Detail = "他のユーザーによってデータが更新されています。最新のデータを取得してください。"
+            };
+
+            problem.Extensions["code"] = "VERSION_CONFLICT";
+
+            return Conflict(problem);
+
+        }
     }
 }

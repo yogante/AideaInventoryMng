@@ -4,11 +4,6 @@ namespace AideaInventoryMng.DTO.Products
 {
     public class UpdateProductRequest
     {
-        // 商品コード
-        [Required]
-        [MaxLength(50)]
-        public string ProductCode { get; set; } = string.Empty;
-
         [Required]
         [MaxLength(200)]
         public string Name { get; set; } = string.Empty;
@@ -29,5 +24,9 @@ namespace AideaInventoryMng.DTO.Products
         // 最低在庫数
         [Range(0, int.MaxValue)]
         public int? MinStockQuantity { get; set; }
+        
+        // 更新対象のVersion
+        [Range(1, int.MaxValue)]
+        public int Version { get; set; }
     }
 }
