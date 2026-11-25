@@ -1,6 +1,7 @@
 ﻿@page "/products"
 
 @using System.Net.Http.Json
+@using System.Text.Json
 @using AideaInventoryMng.Web.Models
 
 @inject HttpClient Http
@@ -125,77 +126,124 @@
     <!-- 商品登録フォーム -->
     @if (_isCreateFormVisible)
     {
-        <div class="card shadow-sm mt-4">
+        <div class="modal fade show d-block"
+             tabindex="-1"
+             role="dialog"
+             aria-modal="true">
 
-            <div class="card-header bg-white">
-                <h3 class="h5 mb-0">商品登録</h3>
-            </div>
 
-            <div class="card-body">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">商品登録</h5>
 
-                @if (!string.IsNullOrEmpty(_createErrorMessage))
-                {
-                    <div class="alert alert-danger" role="alert">
-                        @_createErrorMessage
+                        <button type="button"
+                            class="btn-close"
+                            @onclick="CancelCreateForm"
+                            >
+                        </button>
                     </div>
+
+
+                    <div class="modal-body">
+
+                        @if (!string.IsNullOrEmpty(_createErrorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                @_createErrorMessage
+                            </div>
                     
-                }
+                        }
 
-                <div class="mb-3">
-                    <label class="form-label">商品コード</label>
-                    <input type="text" 
-                        class="form-control"
-                        maxlength="50"
-                        @bind="_productCode"/>
+                        <div class="mb-3">
+                            <label class="form-label">商品コード</label>
+                            <input type="text" 
+                                   class="form-control @(_productCodeError != null ? "is-invalid" : "")"
+                                maxlength="50"
+                                @bind="_productCode"/>
+
+                            @if (_productCodeError != null)
+                            {
+                                <div class="text-danger small mt-1">
+                                    @_productCodeError
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">商品名</label>
+                            <input type="text" 
+                                   class="form-control @(_productNameError != null ? "is-invalid" : "")"
+                                maxlength="200"
+                                @bind="_productName"/>
+                            @if (_productNameError != null)
+                            {
+                                <div class="text-danger small mt-1">
+                                    @_productNameError
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">単価</label>
+                            <input type="number" 
+                                   class="form-control @(_unitPriceError != null ? "is-invalid" : "")"
+                                min="0"
+                                step=".01"
+                                @bind="_price"/>
+
+                            @if (_unitPriceError != null)
+                            {
+                                <div class="text-danger small mt-1">
+                                    @_unitPriceError
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">単位</label>
+                            <input type="text" 
+                                   class="form-control @(_unitError != null ? "is-invalid" : "")"
+                                maxlength="20"
+                                @bind="_unit"/>
+                            @if (_unitError != null)
+                            {
+                                <div class="text-danger small mt-1">
+                                    @_unitError
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">最低在庫数</label>
+                            <input type="number"
+                                class="form-control @(_minStockQuantityError != null ? "is-invalid" : "")"
+                                min="0"
+                                step="1"
+                                @bind="_minStockQuantity"/>
+                            @if (_minStockQuantityError != null)
+                            {
+                                <div class="text-danger small mt-1">
+                                    @_minStockQuantityError
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary"
+                                @onclick="CancelCreateForm">
+                            キャンセル
+                        </button>
+
+                        <button class="btn btn-primary"
+                            @onclick="CreateProductAsync"
+                            disabled="@_isSaving">
+                            @(_isSaving ? "登録中..." : "登録")
+                        </button>
+                    </div>
+
                 </div>
-
-                <div class="mb-3">
-                    <label class="form-label">商品名</label>
-                    <input type="text" 
-                        class="form-control"
-                        maxlength="200"
-                        @bind="_productName"/>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">単価</label>
-                    <input type="number" 
-                        class="form-control"
-                        min="0"
-                        step=".01"
-                        @bind="_price"/>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">単位</label>
-                    <input type="text" 
-                        class="form-control"
-                        maxlength="20"
-                        @bind="_unit"/>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">最低在庫数</label>
-                    <input type="number"
-                        class="form-control"
-                        min="0"
-                        step="1"
-                        @bind="_minStockQuantity"/>
-                </div>
-
-                <div class="d-flex justify-content-end gap-2">
-                    <button class="btn btn-secondary"
-                            @onclick="CancelCreateForm">
-                        キャンセル
-                    </button>
-
-                    <button class="btn btn-primary"
-                        @onclick="CreateProductAsync"
-                        disabled="@_isSaving">
-                        @(_isSaving ? "登録中..." : "登録")
-                    </button>
-                </div>
-
             </div>
         </div>
     }
@@ -228,6 +276,7 @@
                             class="form-control"
                             value="@_editProductCode" 
                             readonly/>
+                       
                     </div>
 
                     <div class="mb-3">
@@ -253,7 +302,7 @@
                             class="form-control"
                             maxlength="20"
                             @bind="@_editUnit"/>
-                    </div>
+                        </div>
 
                     <div class="mb-3">
                         <label class="form-label">最低在庫数</label>
@@ -344,7 +393,7 @@
 
     private string _productName = string.Empty;
 
-    private decimal _price;
+    private decimal? _price;
 
     private string _unit = string.Empty;
 
@@ -369,6 +418,16 @@
     //商品登録時のエラーメッセージ
     private string? _createErrorMessage;
 
+    // 商品更新時のエラーメッセージ
+    private string? _editErrorMessage;
+
+    // 商品登録の入力チェックエラー
+    private string? _productCodeError;
+    private string? _productNameError;
+    private string? _unitError;
+    private string? _unitPriceError;
+    private string? _minStockQuantityError;
+
     // 商品登録フォームの表示状態
     private bool _isCreateFormVisible = false;
 
@@ -390,15 +449,6 @@
 
     // 商品更新処理の状態
     private bool _isUpdating = false;
-
-    // 商品更新時のエラーメッセージ
-    private string? _editErrorMessage;
-
-
-
-
-
-
 
     // 画面表示時に商品一覧を取得
     protected override async Task OnInitializedAsync()
@@ -459,6 +509,12 @@
     private void OpenCreateForm()
     {
         _createErrorMessage = null;
+        _productCodeError = null;
+        _productNameError = null;
+        _unitError = null;
+        _unitPriceError = null;
+        _minStockQuantityError = null;
+
         _isCreateFormVisible = true;
     }
 
@@ -487,6 +543,13 @@
         _unit = string.Empty;
         _minStockQuantity = null;
 
+        _createErrorMessage = null;
+        _productCodeError = null;
+        _productNameError = null;
+        _unitError = null;
+        _unitPriceError = null;
+        _minStockQuantityError = null;
+
         _isCreateFormVisible = false;
     }
 
@@ -494,6 +557,56 @@
     private async Task CreateProductAsync()
     {
         _createErrorMessage = null;
+        _productCodeError = null;
+        _productNameError = null;
+        _unitError = null;
+        _unitPriceError = null;
+        _minStockQuantityError = null;
+
+        // 入力チェック
+        if (string.IsNullOrWhiteSpace(_productCode))
+        {
+            _productCodeError = "商品コードを入力してください。";
+        }
+
+        if (string.IsNullOrWhiteSpace(_productName))
+        {
+            _productNameError = "商品名を入力してください。";
+        }
+
+        // 単価チェック
+        if (_price == null)
+        {
+            _unitPriceError = "単価を入力してください。";
+        }
+        else if (_price < 0)
+        {
+            _unitPriceError = "0以上の単価を入力してください。";
+        }
+
+        if (string.IsNullOrWhiteSpace(_unit))
+        {
+            _unitError = "単位を入力してください。";
+        }
+
+        if (_minStockQuantity == null)
+        {
+            _minStockQuantityError = "最低在庫数を入力してください。";
+        }
+        else if (_minStockQuantity < 0)
+        {
+            _minStockQuantityError = "0以上の整数を入力してください。";
+        }
+
+        // 入力エラーがあれば登録処理を終了
+        if (_productCodeError != null ||
+            _productNameError != null ||
+            _unitError != null ||
+            _unitPriceError != null ||
+            _minStockQuantityError != null)
+        {
+            return;
+        }
 
         //登録リクエストを作成
         var request = new CreateProductRequest
@@ -501,7 +614,7 @@
                 ProductCode = _productCode,
                 Name = _productName,
                 Description = null,
-                Price = _price,
+                Price = _price.Value,
                 Unit = _unit,
                 MinStockQuantity = _minStockQuantity
             };
@@ -519,6 +632,33 @@
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+
+                if ((int)response.StatusCode == 409)
+                {
+                    try
+                    {
+                        using var document = JsonDocument.Parse(errorContent);
+
+                        if (document.RootElement.TryGetProperty("message", out var message))
+                        {
+                            _productCodeError = message.GetString() ?? "この商品コードは既に登録されています。";
+
+                        }
+                        else
+                        {
+                            _productCodeError = "この商品コードは既に登録されています。";
+                        }
+
+
+                    }
+                    catch (JsonException)
+                    {
+                        _productCodeError = "この商品コードは既に登録されています。";
+                    }
+
+                    return;
+                }
+
 
                 _createErrorMessage =
                     $"商品登録に失敗しました。HTTPステータス：{(int)response.StatusCode} 詳細:{errorContent}";

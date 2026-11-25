@@ -3,6 +3,7 @@ using AideaInventoryMng.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AideaInventoryMng.DTO.Products;
+using Npgsql;
 namespace AideaInventoryMng.Controllers
 {
     [Route("api/[controller]")]
@@ -62,7 +63,24 @@ namespace AideaInventoryMng.Controllers
             _context.Products.Add(product);
 
             // データベースに保存
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+
+            }
+            catch (DbUpdateException ex)
+            when (ex.InnerException is PostgresException postgresException
+            && postgresException.SqlState == "23505"
+            && postgresException.ConstraintName == "uq_products_product_code")
+            {
+                // 商品コード重複の場合はHTTP 409を返す
+                return Conflict(new
+                {
+                    message = "この商品コードは既に登録されています。"
+                });
+            }
+
+
 
             // EntityからResponse DTOに変換
             var response = new ProductResponse
