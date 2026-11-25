@@ -279,10 +279,10 @@
                         キャンセル
                     </button>
 
-                    <button class="btn-primary" 
+                    <button class="btn btn-primary" 
                            @onclick="UpdateProductAsync"
                            disabled ="@_isUpdating">
-                            @(_isUpdating ? "登録中..." : "登録")
+                            @(_isUpdating ? "更新中..." : "更新")
                     </button>
                 </div>
 
@@ -308,7 +308,7 @@
             <div class="modal-content">
                 
                 <div class="modal-header">
-                    <h5 class="modal-title">商品登録完了</h5>
+                    <h5 class="modal-title">@_successModalTitle</h5>
                 </div>
 
                 <div class="modal-body text-center py-4">
@@ -319,7 +319,7 @@
                         </i>
                     </div>
 
-                    <p class="mb-0">商品を登録しました。</p>
+                    <p class="mb-0">@_successModalMessage</p>
                 </div>
 
                 <div class="modal-footer justify-content-center">
@@ -356,11 +356,12 @@
 
     private string? _errorMessage;
 
-    private string? _createSuccessMessage;
-
     // 登録成功モーダルの表示状態
     private bool _isSuccessModalVisible = false;
 
+    private string _successModalTitle = string.Empty;
+
+    private string _successModalMessage = string.Empty;
 
     // 商品登録処理の状態
     private bool _isSaving = false;
@@ -392,6 +393,12 @@
 
     // 商品更新時のエラーメッセージ
     private string? _editErrorMessage;
+
+
+
+
+
+
 
     // 画面表示時に商品一覧を取得
     protected override async Task OnInitializedAsync()
@@ -453,7 +460,6 @@
     {
         _createErrorMessage = null;
         _isCreateFormVisible = true;
-        _createSuccessMessage = null;
     }
 
     // 商品編集フォームを表示する
@@ -527,8 +533,9 @@
             _unit = string.Empty;
             _minStockQuantity = null;
 
-            // 登録成功メッセージ
-            _createSuccessMessage = "商品を登録しました。";
+            // 成功モーダルのメッセージを設定
+            _successModalTitle = "商品登録完了";
+            _successModalMessage = "商品を登録しました。";
 
 
             // Formを閉じる
@@ -537,7 +544,7 @@
             //商品一覧を再取得
             await LoadProductAsync();
 
-            // 登録完了モーダルを表示
+            // 登録・更新共通の成功モーダル表示状態
             _isSuccessModalVisible = true;
         }
         catch (HttpRequestException ex)
@@ -615,12 +622,12 @@
             // 商品一覧を再取得
             await LoadProductAsync();
 
-            // 更新完了メッセージ
-            _createSuccessMessage = "商品を更新しました。";
+            // 成功モーダルのメッセージを設定
+            _successModalTitle = "商品更新完了";
+            _successModalMessage = "商品を更新しました。";
 
-            // 完了モーダルを表示
+            // 登録・更新共通の成功モーダル表示状態
             _isSuccessModalVisible = true;
-
 
         }
         catch (HttpRequestException ex)
@@ -639,7 +646,7 @@
 
     }
 
-    // 登録成功モーダルを閉じる
+    // 登録・更新共通の成功モーダルを閉じる
     private void CloseSuccessModal()
     {
         _isSuccessModalVisible = false;
