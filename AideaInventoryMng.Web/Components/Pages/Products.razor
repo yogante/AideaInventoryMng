@@ -112,7 +112,12 @@
                                         <button class="btn btn-outline-primary"
                                         @onclick="()=> OpenEditForm(product)">
                                        編集
-                                    </button>
+                                        </button>
+
+                                        <button class="btn btn-outline-danger btn-sm ms-2"
+                                        @onclick="() => OpenDeleteConfirm(product)">
+                                            削除
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -343,6 +348,79 @@
         
     }
 
+    <!-- 商品削除フォーム -->
+    @if (_isDeleteModalVisible)
+    {
+        <div class="modal fade show d-block"
+        tabindex="1"
+        role="dialog"
+        aria-modal="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">商品削除確認</h5>
+                        
+                        <button type="button"
+                                class="btn-close"
+                                @onclick="CloseDeleteModal"
+                        disabled="@_isDeleting">
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                    
+                        <p>以下の商品を削除しますか？</p>
+
+                        <div class="mb-3">
+                            <label class="form-label">商品コード</label>
+                            <input type="text"
+                                   class="form-control"
+                                   value="@_deleteProductCode"
+                                   readonly />
+                       
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">商品名</label>
+                            <input type="text"
+                                   class="form-control"
+                                   @bind="@_deleteProductName"
+                                   readonly />
+                        </div>
+
+                        <div class="alert alert-warning mb-0">
+                            この商品は論理削除され、通常の商品一覧に表示されなくなります。
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_deleteErrorMessage))
+                        {
+                            <div class="alert alert-danger mt-3 mb-0">
+                                @_deleteErrorMessage
+                            </div>
+                            
+                        }
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary"
+                                @onclick="CloseDeleteModal"
+                        disabled="@_isDeleting">
+                            キャンセル
+                        </button>
+
+                        <button class="btn btn-danger"
+                                @onclick="DeleteProductAsync"
+                                disabled="@_isUpdating">
+                            @(_isUpdating ? "削除中..." : "削除する")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    }
+
 
 </div>
 
@@ -404,7 +482,7 @@
     private bool _isLoading = true;
 
     private string? _errorMessage;
-
+    
     // 登録成功モーダルの表示状態
     private bool _isSuccessModalVisible = false;
 
@@ -449,6 +527,23 @@
 
     // 商品更新処理の状態
     private bool _isUpdating = false;
+
+
+
+    <!-- 削除関係 -->
+    // 商品削除確認モーダルの表示状態
+    private bool _isDeleteModalVisible = false;
+
+    // 削除対象の商品情報
+    private long _deleteProductId;
+    private string _deleteProductCode = string.Empty;
+    private string _deleteProductName = string.Empty;
+
+    // 商品削除処理の状態
+    private bool _isDeleting = false;
+
+    // 商品削除時のエラーメッセージ
+    private string? _deleteErrorMessage;
 
     // 画面表示時に商品一覧を取得
     protected override async Task OnInitializedAsync()
@@ -779,11 +874,25 @@
         finally
         {
             _isUpdating = false;
-            
+
         }
 
+    }
 
 
+    private void OpenDeleteConfirm(ProductResponse product)
+    {
+        // 削除対象の商品情報をセット
+        _deleteProductId = product.Id;
+        _deleteProductCode = product.ProductCode;
+        _deleteProductName = product.Name;
+
+        _deleteErrorMessage = null;
+
+        // 削除確認モーダルを表示
+        _isDeleteModalVisible = true;
+
+        
     }
 
     // 登録・更新共通の成功モーダルを閉じる
@@ -797,5 +906,72 @@
         _isEditModalVisible= false;
     }
 
-    
+    private void CloseDeleteModal()
+    {
+        _isDeleteModalVisible = false;
+        _deleteErrorMessage = null;
+    }
+
+    private async Task DeleteProductAsync()
+    {
+        _editErrorMessage = null;
+
+        try
+        {
+            _isDeleting = true;
+           
+            // 商品更新APIを呼び出す
+            var response = await Http.DeleteAsync(
+                $"api/Products/{_deleteProductId}");
+
+            // 商品が存在しない場合（HTTP 404）
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _deleteErrorMessage =
+                    "対象の商品が見つかりません。商品一覧を再読み込みしてください。";
+                return;
+            }
+
+            // バージョン競合など（HTTP 409）
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                _deleteErrorMessage =
+                    "商品情報が他の処理で変更された可能性があります。商品一覧を再読み込みして確認してください。";
+                return;
+            }
+
+            // その他のエラー
+            var errorContent = await response.Content.ReadAsStringAsync();
+
+            _deleteErrorMessage =
+                $"商品削除に失敗しました。HTTPステータス：{(int)response.StatusCode} 詳細：{errorContent}";
+  
+            // 削除成功（HTTP 204）
+            if(response.IsSuccessStatusCode){
+                // 削除確認モーダルを閉じる
+                _isDeleteModalVisible = false;
+
+                // 商品一覧を再取得
+                await LoadProductAsync();
+
+                // 成功モーダルを表示
+                _successModalTitle = "商品削除完了";
+                _successModalMessage = "商品を削除しました。";
+                _isSuccessModalVisible = true;
+
+                return;
+            }
+
+        }
+        catch (HttpRequestException ex)
+        {
+            _deleteErrorMessage =
+            $"商品削除APIとの通信に失敗しました。詳細：{ex.Message}";
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
 }
