@@ -201,6 +201,22 @@ namespace AideaInventoryMng.Controllers
                 return NotFound();
             }
 
+            // 在庫数または引当数が残っているか確認
+            var hasStock = await _context.Stocks
+                .AnyAsync(s => s.ProductId == id &&
+                (s.Quantity > 0 || s.ReservedQuantity > 0));
+
+            // 在庫数または引当数が残っている場合は409を返す
+            if (hasStock)
+            {
+                return Conflict(new
+                {
+                    code = "HAS_STOCK",
+                    message = "在庫数または引当数が残っているため、商品を削除できません。"
+                });
+            }
+
+
             // 論理削除日時を設定
             var now = DateTime.UtcNow;
 
@@ -221,7 +237,6 @@ namespace AideaInventoryMng.Controllers
 
             // 削除成功(HTTP 204)
             return NoContent();
-
         }
 
 

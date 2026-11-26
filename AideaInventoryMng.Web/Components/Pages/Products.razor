@@ -914,10 +914,9 @@
 
     private async Task DeleteProductAsync()
     {
-        _editErrorMessage = null;
-
         try
         {
+            _editErrorMessage = null;
             _isDeleting = true;
            
             // 商品更新APIを呼び出す
