@@ -212,4 +212,9 @@ CSSをBootstrap方式に改修
 - 削除確認用のモーダル画面を作成
 - 画面側での論理削除削除処理を完成
 
+11/26(木)
+- Location画面の作成の前に、backendでのLocationsControllerの見直しし、再定義
+- Location DTO Response/Request 3種類作成
+- LocationsController内にGET・POST・PUT・DELETEのサービス作成
+
 以上
