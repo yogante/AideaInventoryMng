@@ -26,6 +26,7 @@ namespace AideaInventoryMng.Controllers
         public async Task<ActionResult<IEnumerable<LocationResponse>>> GetLocations()
         {
             var locations = await _context.Locations
+                .Where(l => l.DeletedAt == null)
                 .Select(l => new LocationResponse
                 {
                     Id = l.Id,
@@ -46,7 +47,7 @@ namespace AideaInventoryMng.Controllers
         public async Task<ActionResult<LocationResponse>> GetLocation(int id)
         {
             var location = await _context.Locations
-                  .Where(l => l.Id == id)
+                  .Where(l => l.Id == id && l.DeletedAt == null)
                   .Select(l => new LocationResponse
                   {
                       Id = l.Id,

@@ -217,4 +217,11 @@ CSSをBootstrap方式に改修
 - Location DTO Response/Request 3種類作成
 - LocationsController内にGET・POST・PUT・DELETEのサービス作成
 
+11/27(金)
+- Location 画面の作成
+- Locationの一覧の表示させるためのFront側のサービスおよびDTOを作成し、画面表示させる
+- Locationの追加ボタン作成し、押下後モーダルで入力し、登録実行させるようにする。
+- 入力時の入力チェックを入れて、確認テスト実行済 
 以上
+
+

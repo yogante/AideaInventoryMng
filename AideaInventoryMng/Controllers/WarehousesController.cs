@@ -23,9 +23,10 @@ namespace AideaInventoryMng.Controllers
         public async Task<ActionResult<IEnumerable<WarehouseResponse>>> GetWarehouses() 
         {
             var warehouses = await _context.Warehouses
-                 .Select(w => new WarehouseResponse
+                .Where(w => w.DeletedAt == null)
+                .Select(w => new WarehouseResponse
                   {
-                      //Id = w.Id,
+                      Id = w.Id,
                       Name = w.Name,
                       Code = w.Code,
                       Address = w.Address,
@@ -43,10 +44,10 @@ namespace AideaInventoryMng.Controllers
         public async Task<ActionResult<WarehouseResponse>> GetWarehouse(int id)
         {
             var warehouse = await _context.Warehouses
-                .Where(w => w.Id == id)
+                .Where(w => w.Id == id && w.DeletedAt == null)
                 .Select(w => new WarehouseResponse 
                 {
-                    //Id = w.Id,
+                    Id = w.Id,
                     Name = w.Name,
                     Code = w.Code,
                     Address = w.Address,
