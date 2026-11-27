@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace AideaInventoryMng.Web.Models
+namespace AideaInventoryMng.Web.Models.DTO.Products
 {
     public class UpdateProductRequest
     {

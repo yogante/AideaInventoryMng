@@ -4,7 +4,7 @@ namespace AideaInventoryMng.DTO.Warehouses
 {
     public class WarehouseResponse
     {
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         //商品名
         public string Name { get; set; } = string.Empty;

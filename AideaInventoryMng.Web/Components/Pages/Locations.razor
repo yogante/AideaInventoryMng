@@ -1,0 +1,427 @@
+﻿@page "/locations"
+@using System.Text.Json
+@using AideaInventoryMng.Web.Models.DTO.Locations
+@using AideaInventoryMng.Web.Models.DTO.Warehouses
+
+
+
+@inject HttpClient Http
+
+<PageTitle>ロケーション管理</PageTitle>
+
+<div class="container-fluid p-4">
+    <!-- ページヘッダー -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="h3 mb-2">ロケーション管理</h2>
+            <p class="text-muted mb-0">
+                倉庫内の保管場所を管理します。
+            </p>
+        </div>
+
+        <button class="btn btn-dark" @onclick="OpenCreateModal">
+            ＋ ロケーション登録
+        </button>
+    </div>
+
+    <!-- 検索エリア -->
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <input class="form-control"
+               style="max-width: 400px;"
+               placeholder="ロケーションコード・ロケーション名で検索"
+               @bind="_searchText"
+               @bind:event="oninput" />
+    
+        <button class="btn btn-dark" @onclick="SearchLocations">
+            検索
+        </button>
+    </div>
+
+    <!-- 一覧 -->
+
+    <div class="card">
+        <div class="card-body p-0">
+            @if (_isLoading)
+            {
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">読み込み中...</span>
+                    </div>
+                    <p class="text-muted mt-2 mb-0">データを読み込んでいます。 </p>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="alert alert-danger m-3">
+                    @_errorMessage
+                </div>
+            }
+            else if (_filteredLocations.Count == 0)
+            {
+                <div class="text-center text-muted p-5">
+                    @if (_locations.Count == 0)
+                    {
+                    <p class="mb-0">ロケーションデータがありません。</p>
+                }
+                    else
+                    {
+                    <p class="mb-0">検索条件に一致するロケーションがありません。</p>
+                }
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class=" table table-striped table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>倉庫名</th>
+                                <th>ロケーションコード</th>
+                                <th>ロケーション名</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach(var location in _filteredLocations)
+                            {
+                                <tr>
+                                    <td>@location.WarehouseName</td>
+                                    <td>@location.LocationCode</td>
+                                    <td>@location.LocationName</td>
+                                </tr>
+                                
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+</div>
+
+
+<!--ロケーション作成用モーダル -->
+@if (_isCreateModalVisible)
+{
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         role="dialog"
+         aria-modal="true">
+        
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                
+                <div class="modal-header">
+                    <h5 class="modal-title">ロケーション登録</h5>
+                    <button type="button"
+                            class="btn-close"
+                            @onclick="CloseCreateModal">
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger">
+                        @_errorMessage
+                    </div>
+                }
+
+                <div class="modal-body">
+
+                    @if (!string.IsNullOrEmpty(_createErrorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            @_createErrorMessage
+                        </div>
+                    }
+
+                    <!-- 倉庫 -->
+                    <div class="mb-3">
+                        <label class="form-label">倉庫</label>
+                        
+                        <select class="form-select @(_warehouseError != null ? "is-invalid" : "")"
+                        @bind="_selectedWarehouseId">
+                            <option value="">倉庫を選択してください</option>
+
+                            @foreach(var warehouse in _warehouses)
+                            {
+                                <option value="@warehouse.Id">
+                                    @warehouse.Name (@warehouse.Code)
+                                </option>
+                            }
+                        </select>
+                        @if (_warehouseError != null)
+                        {
+                            <div class="text-danger small mt-1">
+                                @_warehouseError
+                            </div>
+                        }
+                    </div>
+
+                    <!-- ロケーションコード -->
+                    <div class="mb-3">
+                        <label class="form-label">ロケーションコード</label>
+                        <input type="text"
+                            class="form-control @(_locationCodeError != null ? "is-invalid" : "")"
+                            maxlength="30"
+                            @bind="_locationCode" 
+                            placeholder="例：A-001" />
+
+                        @if (_locationCodeError != null)
+                        {
+                            <div class="text-danger small mt-1">
+                                @_locationCodeError
+                            </div>
+                        }
+                    </div>
+                    <!-- ロケーション名 -->
+                    <div class="mb-3">
+                        <label class="form-label">ロケーション名</label>
+                        <input type="text"
+                            class="form-control @(_locationNameError != null ? "is-invalid" : "")" 
+                            maxlength="100"
+                            @bind="_locationName"
+                            placeholder="例：１階 A棚" />
+                        
+                        @if (_locationNameError != null)
+                        {
+                            <div class="text-danger small mt-1">
+                                @_locationNameError
+                            </div>
+                        }
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary"
+                            @onclick="CloseCreateModal">
+                        キャンセル
+                    </button>
+
+                    <button class="btn btn-dark"
+                    @onclick="CreateLocationAsync">
+                        登録
+                    </button>
+                </div>
+                    
+            </div>
+        </div>
+    
+    </div>
+    <div class="modal-backdrop fade show"></div>
+
+}
+@code {
+    private List<LocationResponse> _locations = new();
+    private List<LocationResponse> _filteredLocations = new();
+
+    private List<WarehouseResponse> _warehouses = new();
+    private long? _selectedWarehouseId = null;
+
+    private string _searchText = string.Empty;
+    private bool _isLoading = true;
+
+    private string _createErrorMessage = string.Empty;
+    private string _errorMessage = string.Empty;
+    private string? _warehouseError;
+    private string? _locationCodeError;
+    private string? _locationNameError;
+
+    private string _locationCode = string.Empty;
+    private string _locationName = string.Empty;
+
+    private bool _isCreateModalVisible = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLocations();
+        await LoadWarehouses();
+
+    }
+
+    // ロケーション一覧取得
+    private async Task LoadLocations()
+    {
+        _isLoading = true;
+        _errorMessage = string.Empty;
+
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<LocationResponse>>(
+                "api/Locations");
+
+            _locations = result ?? new List<LocationResponse>();
+
+            SearchLocations();
+        }
+        catch (Exception)
+        {
+            _errorMessage = "ロケーション一覧の取得に失敗しました。APIの接続状態を確認してください。";
+
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    // ロケーションコード・ロケーション名で検索
+    private void SearchLocations()
+    {
+        if (string.IsNullOrWhiteSpace(_searchText))
+        {
+            _filteredLocations = _locations.ToList();
+            return;
+        }
+
+        var keyword = _searchText.Trim();
+
+        _filteredLocations = _locations.Where(location =>
+            location.LocationCode.Contains(
+                keyword,
+                StringComparison.OrdinalIgnoreCase)
+            ||
+            location.LocationName.Contains(
+                keyword,
+                StringComparison.OrdinalIgnoreCase)
+        ).ToList();
+    }
+
+    // 倉庫一覧取得
+    private async Task LoadWarehouses()
+    {
+
+
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<WarehouseResponse>>(
+                "api/Warehouses");
+
+            _warehouses = result ?? new List<WarehouseResponse>();
+
+        }
+        catch (Exception)
+        {
+            _errorMessage = "倉庫一覧の取得に失敗しました。APIの接続状態を確認してください。";
+        }
+
+    }
+
+    private async Task CreateLocationAsync()
+    {
+        _createErrorMessage = string.Empty;
+        _errorMessage = string.Empty;
+        _warehouseError = null;
+        _locationCodeError = null;
+        _locationNameError = null;
+
+        // 入力チェック
+        if (_selectedWarehouseId == null)
+        {
+            _warehouseError = "倉庫を選択してください。";
+        }
+
+        if(string.IsNullOrWhiteSpace(_locationCode))
+        {
+            _locationCodeError = "ロケーションコードを入力してください。";
+        }
+        else if (_locationCode.Trim().Length > 30)
+        {
+            _locationCodeError = "ロケーションコードは30文字以内で入力してください。";
+        }
+
+        if (string.IsNullOrWhiteSpace(_locationName))
+        {
+            _locationNameError = "ロケーション名を入力してください。";
+        }
+        else if (_locationName.Trim().Length > 100)
+        {
+            _locationNameError = "ロケーション名は100文字以内で入力してください。";
+        }
+
+        // 入力エラーがあれば登録しない
+        if (_warehouseError != null
+            || _locationCodeError != null
+            || _locationNameError != null)
+        {
+            return;
+        }
+
+        var request = new CreateLocationRequest
+        {
+            WarehouseId = _selectedWarehouseId.Value,
+            LocationCode = _locationCode.Trim(),
+            LocationName = _locationName.Trim()
+        };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                "api/Locations",
+                request
+            );
+
+            if (response.IsSuccessStatusCode)
+            {
+                CloseCreateModal();
+
+                await LoadLocations();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+
+                try
+                {
+                    using var document = JsonDocument.Parse(errorContent);
+
+                    if (document.RootElement.TryGetProperty(
+                      "message", out var messageElement))
+                    {
+
+                        _createErrorMessage =
+                            messageElement.GetString()
+                            ?? "ロケーションの登録に失敗しました。";
+                    }
+                    else
+                    {
+                        _createErrorMessage =
+                            "ロケーションの登録に失敗しました。入力内容を確認してください。";
+                    }
+
+                }
+                catch (JsonException)
+                {
+                    _createErrorMessage = "ロケーションの登録に失敗しました。入力内容を確認してください。";
+                }
+            }
+        }
+        catch (Exception)
+        {
+            _createErrorMessage =
+        "ロケーションの登録に失敗しました。APIの接続状態を確認してください。";
+        }
+
+    }
+
+
+    private void OpenCreateModal()
+    {
+        _isCreateModalVisible = true;
+    }
+    private void CloseCreateModal()
+    {
+        _isCreateModalVisible = false;
+
+        // 入力内容を初期化
+        _selectedWarehouseId = null;
+        _locationCode = string.Empty;
+        _locationName = string.Empty;
+
+        // エラー情報を初期化
+        _createErrorMessage = string.Empty;
+        _warehouseError = null;
+        _locationCodeError = null;
+        _locationNameError = null;
+    }
+}
